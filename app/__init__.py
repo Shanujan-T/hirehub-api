@@ -25,17 +25,45 @@ def create_app():
     @app.route("/", methods=["GET"])
     def api_home():
         return jsonify({
-            "message": "Event Management API",
+            "message": "Job Finder API",
             "version": "1.0",
             "endpoints": {
-                "sessions": "/api/sessions",
-                "agendas": "/api/agendas",
-                "rooms": "/api/rooms",
+                "jobs": {
+                    "list": "/api/jobs"
+                },
+                "users": {
+                    "list": "/api/users"
+                },
                 "auth": {
-                    "register": "/api/auth/register",
-                    "login": "/api/auth/login"
+                    "register": "/api/auth/register",   
+                    "login": "/api/auth/login"  
+                },
+                "applications": {
+                    "list": "/api/applications"
+                },
+                "comments": {
+                    "list": "/api/comments"
+                },
+                "companies": {
+                    "list": "/api/companies"
+                },
+                "skills": {
+                    "list": "/api/skills"
+                },
+                "job_skills": {
+                    "list": "/api/job_skills"
+                },
+                "user_skills": {
+                    "list": "/api/user_skills"
+                },
+                "saved_jobs": {
+                    "list": "/api/saved_jobs"   
+                },
+                "notifications": {
+                    "list": "/api/notifications"
                 }
             }
+            
         })
 
     @app.errorhandler(OperationalError)
