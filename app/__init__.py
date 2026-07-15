@@ -1,8 +1,9 @@
 from flask import Flask, jsonify
+from sqlalchemy.exc import OperationalError, ProgrammingError
+
 from app.config import Config
 from app.extensions import db, jwt
 from app.routes import register_blueprints
-from sqlalchemy.exc import OperationalError, ProgrammingError
 
 
 def create_app():
@@ -11,59 +12,33 @@ def create_app():
     db.init_app(app)
     jwt.init_app(app)
 
-    from app.models import User
+    # Import all models so metadata is registered before create_all
+    from app.models import User  # triggers app.models.__init__ (all models)
 
     @jwt.user_lookup_loader
     def user_lookup_callback(_jwt_header, jwt_data):
         identity = jwt_data["sub"]
         return db.session.get(User, int(identity))
 
-
-
     register_blueprints(app)
-    
+
     @app.route("/", methods=["GET"])
     def api_home():
         return jsonify({
-            "message": "Job Finder API",
+            "message": "Local Job Finder API",
             "version": "1.0",
             "endpoints": {
-                "jobs": {
-                    "list": "/api/jobs"
-                },
-                "users": {
-                    "list": "/api/users"
-                },
-                "auth": {
-                    "register": "/api/auth/register",   
-                    "login": "/api/auth/login"  
-                },
-                "applications": {
-                    "list": "/api/applications"
-                },
-                "comments": {
-                    "list": "/api/comments"
-                },
-                "companies": {
-                    "list": "/api/companies"
-                },
-                "skills": {
-                    "list": "/api/skills"
-                },
-                "job_skills": {
-                    "list": "/api/job_skills"
-                },
-                "user_skills": {
-                    "list": "/api/user_skills"
-                },
-                "saved_jobs": {
-                    "list": "/api/saved_jobs"   
-                },
-                "notifications": {
-                    "list": "/api/notifications"
-                }
-            }
-            
+                "auth": "/api/auth",
+                "users": "/api/users",
+                "candidates": "/api/candidates",
+                "companies": "/api/companies",
+                "skills": "/api/skills",
+                "jobs": "/api/jobs",
+                "applications": "/api/applications",
+                "posts": "/api/posts",
+                "reports": "/api/reports",
+                "dashboard": "/api/me/dashboard",
+            },
         })
 
     @app.errorhandler(OperationalError)
