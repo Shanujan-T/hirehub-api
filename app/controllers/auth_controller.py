@@ -120,3 +120,91 @@ def _profile_updatable_fields(data, user):
         errors.append("role cannot be changed via profile update.")
 
     return updates, errors
+
+
+def register():
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required."}), 400
+
+    errors = _validate_register_payload(data)
+    if errors:
+        return jsonify({"errors": errors}), 400
+
+    # Hard-code role from account type; never trust client for admin
+    role = _resolve_public_role(data) or "seeker"
+
+    try:
+        user = User(
+            email=str(data.get("email")).strip().lower(),
+            full_name=str(data.get("full_name")).strip(),
+            location=(str(data.get("location")).strip() if data.get("location") else None),
+            role=role,
+        )
+        user.set_password(str(data.get("password")))
+        db.session.add(user)
+        db.session.commit()
+        return jsonify({"message": "User registered successfully.", "user": user.to_dict()}), 201
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An internal server error occurred."}), 500
+
+
+def login():
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required."}), 400
+
+    errors = _validate_login_payload(data)
+    if errors:
+        return jsonify({"errors": errors}), 400
+
+    try:
+        email_str = str(data.get("email")).strip().lower()
+        user = User.query.filter_by(email=email_str).first()
+
+        if not user or not user.check_password(str(data.get("password"))):
+            return jsonify({"error": "Invalid email or password."}), 401
+
+        if not user.is_active:
+            return jsonify({"error": "Account is deactivated."}), 403
+
+        access_token = create_access_token(identity=str(user.id))
+        return jsonify({
+            "message": "Login successful.",
+            "access_token": access_token,
+            "user": user.to_dict(),
+        }), 200
+    except Exception:
+        return jsonify({"error": "An internal server error occurred."}), 500
+
+
+def logout():
+    # Stateless JWT — client discards the token
+    return jsonify({"message": "Logged out successfully."}), 200
+
+
+def get_profile():
+    return jsonify({"user": current_user.to_dict(include_skills=True)}), 200
+
+
+def update_profile():
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required."}), 400
+
+    updates, errors = _profile_updatable_fields(data, current_user)
+    if errors:
+        return jsonify({"errors": errors}), 400
+
+    try:
+        password = updates.pop("password", None)
+        for key, value in updates.items():
+            setattr(current_user, key, value)
+        if password:
+            current_user.set_password(password)
+        db.session.commit()
+        return jsonify({"message": "Profile updated successfully.", "user": current_user.to_dict()}), 200
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An internal server error occurred."}), 500
