@@ -1,0 +1,19 @@
+from app.extensions import db
+from app.utils import utc_now
+
+REPORT_TARGET_TYPES = ("post", "comment", "job", "user")
+REPORT_STATUSES = ("open", "reviewed", "dismissed", "actioned")
+
+
+class Report(db.Model):
+    __tablename__ = "reports"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    reporter_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    target_type = db.Column(db.String(20), nullable=False)
+    target_id = db.Column(db.Integer, nullable=False)
+    reason = db.Column(db.String(100), nullable=False)
+    details = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="open")
+    resolved_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=utc_now)
