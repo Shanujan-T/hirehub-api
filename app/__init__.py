@@ -1,8 +1,9 @@
 from flask import Flask, jsonify
+from sqlalchemy.exc import OperationalError, ProgrammingError
+
 from app.config import Config
 from app.extensions import db, jwt
 from app.routes import register_blueprints
-from sqlalchemy.exc import OperationalError, ProgrammingError
 
 
 def create_app():
@@ -11,31 +12,33 @@ def create_app():
     db.init_app(app)
     jwt.init_app(app)
 
-    from app.models import User
+    # Import all models so metadata is registered before create_all
+    from app.models import User  # triggers app.models.__init__ (all models)
 
     @jwt.user_lookup_loader
     def user_lookup_callback(_jwt_header, jwt_data):
         identity = jwt_data["sub"]
         return db.session.get(User, int(identity))
 
-
-
     register_blueprints(app)
-    
+
     @app.route("/", methods=["GET"])
     def api_home():
         return jsonify({
-            "message": "Event Management API",
+            "message": "Local Job Finder API",
             "version": "1.0",
             "endpoints": {
-                "sessions": "/api/sessions",
-                "agendas": "/api/agendas",
-                "rooms": "/api/rooms",
-                "auth": {
-                    "register": "/api/auth/register",
-                    "login": "/api/auth/login"
-                }
-            }
+                "auth": "/api/auth",
+                "users": "/api/users",
+                "candidates": "/api/candidates",
+                "companies": "/api/companies",
+                "skills": "/api/skills",
+                "jobs": "/api/jobs",
+                "applications": "/api/applications",
+                "posts": "/api/posts",
+                "reports": "/api/reports",
+                "dashboard": "/api/me/dashboard",
+            },
         })
 
     @app.errorhandler(OperationalError)

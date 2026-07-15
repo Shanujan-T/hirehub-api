@@ -1,0 +1,9 @@
+{
+  "name": "hirehub-api",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "seed:admin": "python -m seeders.admin_seeder",
+    "start": "python run.py"
+  }
+}
