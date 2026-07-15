@@ -12,3 +12,16 @@ class Notification(db.Model):
     link_url = db.Column(db.String(500), nullable=True)
     is_read = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=utc_now)
+
+    user = db.relationship("User", foreign_keys=[user_id])
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "type": self.type,
+            "message": self.message,
+            "link_url": self.link_url,
+            "is_read": self.is_read,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
