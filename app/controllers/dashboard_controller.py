@@ -77,3 +77,29 @@ def get_dashboard():
     else:
         data = _admin_dashboard()
     return jsonify({"dashboard": data}), 200
+
+
+def export_dashboard_pdf():
+    if current_user.role == "seeker":
+        data = _seeker_dashboard()
+        sections = [
+            ("Applications by status", str(data["applications_by_status"])),
+            ("Recommended jobs", str(len(data["recommended_jobs"]))),
+        ]
+        for job in data["recommended_jobs"][:5]:
+            sections.append((job.get("title"), f"score={job.get('match_score')}"))
+    elif current_user.role == "employer":
+        data = _employer_dashboard()
+        sections = [
+            ("Jobs", str(data["jobs_count"])),
+            ("Applicants by status", str(data["applicants_by_status"])),
+        ]
+    else:
+        data = _admin_dashboard()
+        sections = [(k, str(v)) for k, v in data["counts"].items()]
+
+    return document_pdf_response(
+        "dashboard.pdf",
+        f"Dashboard — {current_user.full_name}",
+        sections,
+    )
