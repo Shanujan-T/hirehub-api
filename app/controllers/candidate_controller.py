@@ -38,3 +38,28 @@ def get_candidate(candidate_id):
     if not user or user.role != "seeker":
         return jsonify({"error": "Candidate not found."}), 404
     return jsonify({"candidate": user.to_dict(include_skills=True)}), 200
+
+
+def export_candidate_pdf(candidate_id):
+    user = db.session.get(User, candidate_id)
+    if not user or user.role != "seeker":
+        return jsonify({"error": "Candidate not found."}), 404
+
+    skills_text = ", ".join(
+        f"{us.skill.name} ({us.level})" for us in user.skills if us.skill
+    ) or "None"
+
+    sections = [
+        ("Name", user.full_name),
+        ("Email", user.email),
+        ("Location", user.location or "—"),
+        ("Education", user.education_level or "—"),
+        ("Bio", user.bio or "—"),
+        ("Resume", user.resume_url or "—"),
+        ("Skills", skills_text),
+    ]
+    return document_pdf_response(
+        f"candidate-{user.id}.pdf",
+        f"Candidate Profile — {user.full_name}",
+        sections,
+    )
