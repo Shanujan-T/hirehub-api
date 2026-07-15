@@ -23,3 +23,38 @@ class User(db.Model):
     avatar_url = db.Column(db.String(500), nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=utc_now)
+
+    skills = db.relationship("UserSkill", back_populates="user", cascade="all, delete-orphan")
+    interests = db.relationship("UserInterest", back_populates="user", cascade="all, delete-orphan")
+    company = db.relationship("Company", back_populates="owner", uselist=False)
+    posted_jobs = db.relationship("Job", back_populates="poster", foreign_keys="Job.posted_by")
+    applications = db.relationship("Application", back_populates="seeker", foreign_keys="Application.seeker_id")
+    posts = db.relationship("Post", back_populates="author", foreign_keys="Post.author_id")
+    comments = db.relationship("Comment", back_populates="author", foreign_keys="Comment.author_id")
+    reports_filed = db.relationship("Report", back_populates="reporter", foreign_keys="Report.reporter_id")
+
+    def set_password(self, password):
+        self.password = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password, password)
+
+    def to_dict(self, include_skills=False):
+        data = {
+            "id": self.id,
+            "email": self.email,
+            "role": self.role,
+            "full_name": self.full_name,
+            "bio": self.bio,
+            "location": self.location,
+            "phone": self.phone,
+            "education_level": self.education_level,
+            "resume_url": self.resume_url,
+            "avatar_url": self.avatar_url,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+        if include_skills:
+            data["skills"] = [us.to_dict() for us in self.skills]
+            data["interests"] = [ui.to_dict() for ui in self.interests]
+        return data
