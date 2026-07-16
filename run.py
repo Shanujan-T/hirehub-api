@@ -3,6 +3,10 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app import create_app
 
+import os
+
+from wsgi import app, init_db
+
 app = create_app()
 CORS(app)
 
@@ -18,5 +22,9 @@ with app.app_context():
         print(f"Details: {exc.orig if getattr(exc, 'orig', None) else exc}\n")
         raise SystemExit(1) from exc
 
+
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    init_db()
+    port = int(os.getenv("PORT", "5000"))
+    debug = os.getenv("FLASK_DEBUG", "1") == "1"
+    app.run(debug=debug, host="0.0.0.0", port=port)
