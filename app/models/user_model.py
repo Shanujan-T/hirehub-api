@@ -32,6 +32,8 @@ class User(db.Model):
     posts = db.relationship("Post", back_populates="author", foreign_keys="Post.author_id")
     comments = db.relationship("Comment", back_populates="author", foreign_keys="Comment.author_id")
     reports_filed = db.relationship("Report", back_populates="reporter", foreign_keys="Report.reporter_id")
+    community_memberships = db.relationship("CommunityMember", back_populates="user")
+    mentor_profile = db.relationship("MentorProfile", back_populates="user", uselist=False)
 
     def set_password(self, password):
         self.password = generate_password_hash(password)
