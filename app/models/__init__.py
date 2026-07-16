@@ -15,6 +15,17 @@ from app.models.conversation_model import Conversation
 from app.models.message_model import Message
 from app.models.saved_job_model import SavedJob
 from app.models.notification_model import Notification
+from app.models.community_model import Community
+from app.models.community_member_model import CommunityMember
+from app.models.community_announcement_model import CommunityAnnouncement
+from app.models.post_media_model import PostMedia
+from app.models.hashtag_model import Hashtag, post_hashtags
+from app.models.post_reaction_model import PostReaction
+from app.models.post_bookmark_model import PostBookmark
+from app.models.post_mention_model import PostMention
+from app.models.job_referral_model import JobReferral
+from app.models.mentor_profile_model import MentorProfile
+from app.models.mentorship_session_model import MentorshipSession
 
 __all__ = [
     "User",
@@ -34,4 +45,16 @@ __all__ = [
     "Message",
     "SavedJob",
     "Notification",
+    "Community",
+    "CommunityMember",
+    "CommunityAnnouncement",
+    "PostMedia",
+    "Hashtag",
+    "post_hashtags",
+    "PostReaction",
+    "PostBookmark",
+    "PostMention",
+    "JobReferral",
+    "MentorProfile",
+    "MentorshipSession",
 ]
