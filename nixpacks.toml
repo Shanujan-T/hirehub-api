@@ -1,6 +1,0 @@
-[variables]
-NIXPACKS_PYTHON_VERSION = "3.11"
-GUNICORN_CMD_ARGS = "--config gunicorn.conf.py"
-
-[start]
-cmd = "gunicorn run:app"
