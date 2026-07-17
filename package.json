@@ -4,6 +4,6 @@
   "private": true,
   "scripts": {
     "seed:admin": "python -m seeders.admin_seeder",
-    "start": "gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5000}"
+    "start": "bash start.sh"
   }
 }

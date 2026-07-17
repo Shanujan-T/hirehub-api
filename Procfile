@@ -1,1 +1,1 @@
-web: python migrate_schema.py; gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 --access-logfile - --error-logfile -
+web: bash start.sh
