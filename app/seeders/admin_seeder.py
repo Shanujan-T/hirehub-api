@@ -16,7 +16,7 @@ import sys
 
 from dotenv import load_dotenv
 
-# Allow running as `python -m seeders.admin_seeder` from project root
+# Allow running as `python -m app.seeders.admin_seeder` from project root
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 load_dotenv()
