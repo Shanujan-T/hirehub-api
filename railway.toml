@@ -2,10 +2,11 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "gunicorn -c gunicorn.conf.py run:app"
+startCommand = "gunicorn run:app"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 
 [variables]
 NIXPACKS_PYTHON_VERSION = "3.11"
+GUNICORN_CMD_ARGS = "--config gunicorn.conf.py"
