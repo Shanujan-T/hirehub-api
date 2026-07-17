@@ -1,6 +1,7 @@
 """Apply schema updates for communities, rich posts, referrals, and mentorship."""
 
 from sqlalchemy import inspect, text
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app import create_app
 from app.extensions import db
@@ -27,17 +28,24 @@ def table_exists(table):
 def run():
     app = create_app()
     with app.app_context():
-        db.create_all()
+        try:
+            db.create_all()
 
-        for statement in ALTERS:
-            table = statement.split(" ")[2]
-            column = statement.split(" ")[5]
-            if table_exists(table) and not column_exists(table, column):
-                db.session.execute(text(statement))
-                print(f"Applied: {statement}")
+            for statement in ALTERS:
+                table = statement.split(" ")[2]
+                column = statement.split(" ")[5]
+                if table_exists(table) and not column_exists(table, column):
+                    db.session.execute(text(statement))
+                    print(f"Applied: {statement}")
 
-        db.session.commit()
-        print("Schema migration complete.")
+            db.session.commit()
+            print("Schema migration complete.")
+        except (OperationalError, ProgrammingError) as exc:
+            db.session.rollback()
+            print(f"Schema migration skipped (database unavailable): {exc}")
+        except Exception as exc:
+            db.session.rollback()
+            print(f"Schema migration skipped: {exc}")
 
 
 if __name__ == "__main__":

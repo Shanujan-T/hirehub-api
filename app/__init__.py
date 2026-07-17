@@ -22,6 +22,10 @@ def create_app():
 
     register_blueprints(app)
 
+    @app.route("/health", methods=["GET"])
+    def health():
+        return jsonify({"status": "ok"}), 200
+
     @app.route("/", methods=["GET"])
     def api_home():
         return jsonify({
