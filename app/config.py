@@ -42,6 +42,7 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
         "pool_recycle": 280,
+        "connect_args": {"connect_timeout": 10},
     }
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "super-secret-key-change-me")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(
