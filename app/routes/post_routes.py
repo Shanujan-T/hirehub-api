@@ -50,3 +50,36 @@ def create_comment(post_id):
 @jwt_required_active
 def delete_comment(comment_id):
     return ctrl.delete_comment(comment_id)
+
+
+@posts_bp.route("/<int:post_id>/reactions", methods=["POST"])
+@jwt_required_active
+def add_reaction(post_id):
+    return ctrl.add_reaction(post_id)
+
+
+@posts_bp.route("/<int:post_id>/reactions", methods=["DELETE"])
+@jwt_required_active
+def remove_reaction(post_id):
+    return ctrl.remove_reaction(post_id)
+
+
+@posts_bp.route("/<int:post_id>/bookmark", methods=["POST"])
+@jwt_required_active
+def bookmark_post(post_id):
+    return ctrl.bookmark_post(post_id)
+
+
+@posts_bp.route("/<int:post_id>/bookmark", methods=["DELETE"])
+@jwt_required_active
+def unbookmark_post(post_id):
+    return ctrl.unbookmark_post(post_id)
+
+
+my_bookmarks_bp = Blueprint("my_bookmarks", __name__, url_prefix="/api/my")
+
+
+@my_bookmarks_bp.route("/bookmarks", methods=["GET"])
+@jwt_required_active
+def get_my_bookmarks():
+    return ctrl.get_my_bookmarks()
