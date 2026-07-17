@@ -24,7 +24,4 @@ with app.app_context():
 
 
 if __name__ == "__main__":
-    init_db()
-    port = int(os.getenv("PORT", "5000"))
-    debug = os.getenv("FLASK_DEBUG", "1") == "1"
-    app.run(debug=debug, host="0.0.0.0", port=port)
+    app.run(debug=True, port=5000)
