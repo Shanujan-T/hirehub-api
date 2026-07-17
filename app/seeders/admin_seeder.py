@@ -3,7 +3,9 @@
 Usage:
     npm run seed:admin
     # or
-    python -m seeders.admin_seeder
+    python run_seeders.py
+    # or
+    python -m app.seeders.admin_seeder
 
 Requires ADMIN_EMAIL and ADMIN_PASSWORD in the environment / .env.
 Never hard-code admin credentials in source.

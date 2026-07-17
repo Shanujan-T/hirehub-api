@@ -26,7 +26,9 @@ Admins cannot be created through `POST /api/auth/register`. Run the seeder:
 ```bash
 npm run seed:admin
 # or
-python -m seeders.admin_seeder
+python run_seeders.py
+# or
+python -m app.seeders.admin_seeder
 ```
 
 Uses `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and optional `ADMIN_FULL_NAME` from `.env`. Skips if that admin email already exists. Password is hashed before save.

@@ -38,6 +38,7 @@ if __name__ == "__main__":
         serve(app, host="0.0.0.0", port=port, threads=4)
     else:
         subprocess.run(
-            [sys.executable, "-m", "gunicorn", "-c", "gunicorn.conf.py", "run:app"],
+            [sys.executable, "-m", "gunicorn", "run:app"],
             check=True,
+            env={**os.environ, "GUNICORN_CMD_ARGS": "--config gunicorn.conf.py"},
         )
