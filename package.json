@@ -1,9 +1,0 @@
-{
-  "name": "hirehub-api",
-  "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "seed:admin": "python run_seeders.py",
-    "start": "gunicorn run:app"
-  }
-}
