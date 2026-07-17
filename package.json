@@ -4,6 +4,6 @@
   "private": true,
   "scripts": {
     "seed:admin": "python -m seeders.admin_seeder",
-    "start": "bash start.sh"
+    "start": "gunicorn -c gunicorn.conf.py run:app"
   }
 }

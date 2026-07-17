@@ -1,8 +1,9 @@
 from flask_cors import CORS
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
-from wsgi import app
+from app import create_app
 
+app = create_app()
 CORS(app)
 
 
@@ -21,4 +22,22 @@ def init_db() -> None:
 
 
 if __name__ == "__main__":
+    import os
+    import subprocess
+    import sys
+
+    subprocess.run([sys.executable, "migrate_schema.py"], check=False)
     init_db()
+
+    port = int(os.getenv("PORT", "5000"))
+
+    if sys.platform == "win32":
+        from waitress import serve
+
+        print(f"Starting server on http://127.0.0.1:{port}")
+        serve(app, host="0.0.0.0", port=port, threads=4)
+    else:
+        subprocess.run(
+            [sys.executable, "-m", "gunicorn", "-c", "gunicorn.conf.py", "run:app"],
+            check=True,
+        )
