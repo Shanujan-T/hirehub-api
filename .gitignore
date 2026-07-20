@@ -11,3 +11,6 @@ env/
 .vscode/
 *.swp
 .DS_Store
+
+postman
+.postman
