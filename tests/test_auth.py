@@ -12,6 +12,7 @@ def test_register(client):
     assert response.status_code == 201
     data = response.get_json()
     assert data["message"] == "User registered successfully."
+    assert "access_token" in data
     assert data["user"]["email"] == "seeker@example.com"
     assert data["user"]["role"] == "seeker"
 
