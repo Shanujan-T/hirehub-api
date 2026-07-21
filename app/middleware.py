@@ -42,3 +42,14 @@ def jwt_required_active(fn):
         return fn(*args, **kwargs)
 
     return wrapper
+
+
+def jwt_optional(fn):
+    """Load JWT identity when present; allow unauthenticated access."""
+
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        verify_jwt_in_request(optional=True)
+        return fn(*args, **kwargs)
+
+    return wrapper

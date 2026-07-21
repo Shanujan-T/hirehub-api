@@ -1,13 +1,14 @@
 from flask import Blueprint
 
 from app.controllers import community_controller as ctrl
-from app.middleware import jwt_required_active
+from app.middleware import jwt_optional, jwt_required_active
 
 communities_bp = Blueprint("communities", __name__, url_prefix="/api/communities")
 my_communities_bp = Blueprint("my_communities", __name__, url_prefix="/api/my")
 
 
 @communities_bp.route("", methods=["GET"])
+@jwt_optional
 def list_communities():
     return ctrl.get_communities()
 
@@ -24,7 +25,14 @@ def my_communities():
     return ctrl.get_my_communities()
 
 
+@communities_bp.route("/mine", methods=["GET"])
+@jwt_required_active
+def mine_communities():
+    return ctrl.get_mine_communities()
+
+
 @communities_bp.route("/<int:community_id>", methods=["GET"])
+@jwt_optional
 def get_community(community_id):
     return ctrl.get_community(community_id)
 

@@ -1,5 +1,5 @@
 from flask import jsonify, request
-from flask_jwt_extended import current_user
+from flask_jwt_extended import current_user, get_jwt_identity
 from sqlalchemy import or_
 
 from app.extensions import db
@@ -13,6 +13,24 @@ from app.utils.social_helpers import (
     is_community_member,
     notify,
 )
+
+
+def _current_user_member_ids():
+    """Community IDs the authenticated user belongs to, or empty when anonymous."""
+    user_id = get_jwt_identity()
+    if user_id is None:
+        try:
+            if current_user:
+                user_id = current_user.id
+        except RuntimeError:
+            user_id = None
+    if user_id is None:
+        return set()
+    uid = int(user_id)
+    return {
+        m.community_id
+        for m in CommunityMember.query.filter_by(user_id=uid).all()
+    }
 
 
 def get_communities():
@@ -31,7 +49,15 @@ def get_communities():
         query = query.filter(Community.location.ilike(f"%{location}%"))
 
     rows = query.order_by(Community.id.desc()).all()
-    return jsonify({"communities": [c.to_dict(include_member_count=True) for c in rows]}), 200
+    member_ids = _current_user_member_ids()
+
+    communities = []
+    for community in rows:
+        data = community.to_dict(include_member_count=True)
+        data["is_member"] = community.id in member_ids
+        communities.append(data)
+
+    return jsonify({"communities": communities}), 200
 
 
 def create_community():
@@ -83,7 +109,10 @@ def get_community(community_id):
     community = db.session.get(Community, community_id)
     if not community:
         return jsonify({"error": "Community not found."}), 404
-    return jsonify({"community": community.to_dict(include_member_count=True)}), 200
+    member_ids = _current_user_member_ids()
+    data = community.to_dict(include_member_count=True)
+    data["is_member"] = community.id in member_ids
+    return jsonify({"community": data}), 200
 
 
 def update_community(community_id):
@@ -152,8 +181,11 @@ def join_community(community_id):
     community = db.session.get(Community, community_id)
     if not community:
         return jsonify({"error": "Community not found."}), 404
-    if get_membership(current_user.id, community.id):
-        return jsonify({"error": "Already a member of this community."}), 400
+    existing = get_membership(current_user.id, community.id)
+    if existing:
+        return jsonify(
+            {"message": "Already a member.", "membership": existing.to_dict()}
+        ), 200
     try:
         row = CommunityMember(
             community_id=community.id,
@@ -249,6 +281,16 @@ def remove_member(community_id, user_id):
 
 
 def get_my_communities():
+    communities = _serialize_user_communities(include_role=True)
+    return jsonify({"communities": communities}), 200
+
+
+def get_mine_communities():
+    communities = _serialize_user_communities()
+    return jsonify({"communities": communities}), 200
+
+
+def _serialize_user_communities(include_role=False):
     rows = CommunityMember.query.filter_by(user_id=current_user.id).order_by(
         CommunityMember.id.desc()
     ).all()
@@ -256,9 +298,11 @@ def get_my_communities():
     for row in rows:
         if row.community:
             data = row.community.to_dict(include_member_count=True)
-            data["my_role"] = row.role
+            data["is_member"] = True
+            if include_role:
+                data["my_role"] = row.role
             communities.append(data)
-    return jsonify({"communities": communities}), 200
+    return communities
 
 
 def get_community_feed(community_id):
