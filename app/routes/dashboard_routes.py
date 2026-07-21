@@ -13,6 +13,12 @@ def upload_resume():
     return auth_ctrl.upload_resume()
 
 
+@dashboard_bp.route("/avatar", methods=["POST"])
+@jwt_required_active
+def upload_avatar():
+    return auth_ctrl.upload_avatar()
+
+
 @dashboard_bp.route("/dashboard", methods=["GET"])
 @jwt_required_active
 def get_dashboard():
