@@ -7,7 +7,7 @@ from sqlalchemy import func, or_
 from app.extensions import db
 from app.models import Company, Job
 from app.utils.csv_utils import rows_to_csv_response
-from app.utils.image_upload import save_image_file, validate_image_file
+from app.utils.image_upload import save_entity_image, validate_image_file
 
 
 def _validate_company_payload(data, company_id=None):
@@ -96,6 +96,8 @@ def create_company():
             website=(str(data.get("website")).strip() if data.get("website") else None),
             location=(str(data.get("location")).strip() if data.get("location") else None),
             logo_url=(str(data.get("logo_url")).strip() if data.get("logo_url") else None),
+            founded_year=int(data["founded_year"]) if data.get("founded_year") not in (None, "") else None,
+            company_size=(str(data.get("company_size")).strip() if data.get("company_size") else None),
         )
         db.session.add(company)
         db.session.commit()
@@ -125,7 +127,7 @@ def update_company(company_id):
         return jsonify({"errors": errors}), 400
 
     try:
-        for field in ("name", "industry", "description", "website", "location", "logo_url"):
+        for field in ("name", "industry", "description", "website", "location", "logo_url", "company_size"):
             if field in data:
                 val = data.get(field)
                 if field == "name":
@@ -134,6 +136,9 @@ def update_company(company_id):
                     company.description = val
                 else:
                     setattr(company, field, str(val).strip() if val not in (None, "") else None)
+        if "founded_year" in data:
+            val = data.get("founded_year")
+            company.founded_year = int(val) if val not in (None, "") else None
         db.session.commit()
         return jsonify({"message": "Company updated successfully.", "company": company.to_dict()}), 200
     except Exception:
@@ -197,13 +202,15 @@ def _save_company_logo(company, file):
     _, error = validate_image_file(file)
     if error:
         return None, error
-    original, _ = validate_image_file(file)
-    stored_name = f"{company.id}_{original}"
-    upload_dir = current_app.config["COMPANY_LOGO_UPLOAD_FOLDER"]
-    _, error = save_image_file(file, upload_dir, stored_name)
+    url, error = save_entity_image(
+        file,
+        current_app.config["COMPANY_LOGO_UPLOAD_FOLDER"],
+        company.id,
+        "/uploads/companies",
+    )
     if error:
         return None, error
-    company.logo_url = f"/uploads/companies/{stored_name}"
+    company.logo_url = url
     return company.logo_url, None
 
 
