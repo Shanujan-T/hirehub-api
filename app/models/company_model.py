@@ -13,6 +13,8 @@ class Company(db.Model):
     website = db.Column(db.String(255), nullable=True)
     location = db.Column(db.String(120), nullable=True)
     logo_url = db.Column(db.String(500), nullable=True)
+    founded_year = db.Column(db.Integer, nullable=True)
+    company_size = db.Column(db.String(50), nullable=True)
     is_verified = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=utc_now)
 
@@ -29,6 +31,8 @@ class Company(db.Model):
             "website": self.website,
             "location": self.location,
             "logo_url": self.logo_url,
+            "founded_year": self.founded_year,
+            "company_size": self.company_size,
             "is_verified": self.is_verified,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
