@@ -1,4 +1,4 @@
-from flask import jsonify, request
+from flask import current_app, jsonify, request
 from flask_jwt_extended import current_user, get_jwt_identity
 from sqlalchemy import or_
 
@@ -6,6 +6,7 @@ from app.extensions import db
 from app.models import Community, CommunityAnnouncement, CommunityMember, Post
 from app.models.community_model import COMMUNITY_TYPES
 from app.models.community_member_model import COMMUNITY_ROLES
+from app.utils.image_upload import save_entity_image, validate_image_file
 from app.utils.social_helpers import (
     can_manage_community,
     can_moderate_community,
@@ -143,7 +144,12 @@ def update_community(community_id):
             "industry",
         ):
             if field in data:
-                setattr(community, field, data.get(field))
+                val = data.get(field)
+                setattr(
+                    community,
+                    field,
+                    val if val not in (None, "") else None,
+                )
         if "type" in data:
             community_type = str(data.get("type")).strip().lower()
             if community_type not in COMMUNITY_TYPES:
@@ -172,6 +178,43 @@ def delete_community(community_id):
         db.session.delete(community)
         db.session.commit()
         return jsonify({"message": "Community deleted."}), 200
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An internal server error occurred."}), 500
+
+
+def upload_community_logo(community_id):
+    community = db.session.get(Community, community_id)
+    if not community:
+        return jsonify({"error": "Community not found."}), 404
+
+    membership = get_membership(current_user.id, community.id)
+    if not can_manage_community(membership, current_user) and community.created_by != current_user.id:
+        if current_user.role != "admin":
+            return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
+
+    file = request.files.get("logo") or request.files.get("avatar")
+    if not file or not file.filename:
+        return jsonify({"errors": ["logo is required."]}), 400
+
+    _, error = validate_image_file(file)
+    if error:
+        return jsonify({"errors": [error]}), 400
+
+    try:
+        url, error = save_entity_image(
+            file,
+            current_app.config["COMMUNITY_AVATAR_UPLOAD_FOLDER"],
+            community.id,
+            "/uploads/communities",
+        )
+        if error:
+            return jsonify({"errors": [error]}), 400
+        community.avatar_url = url
+        db.session.commit()
+        data = community.to_dict(include_member_count=True)
+        data["is_member"] = community.id in _current_user_member_ids()
+        return jsonify({"message": "Community logo uploaded.", "community": data}), 200
     except Exception:
         db.session.rollback()
         return jsonify({"error": "An internal server error occurred."}), 500
