@@ -40,6 +40,14 @@ def create_app(config_class=Config):
     def serve_company_logo(filename):
         return send_from_directory(app.config["COMPANY_LOGO_UPLOAD_FOLDER"], filename)
 
+    @app.route("/uploads/users/<path:filename>", methods=["GET"])
+    def serve_user_avatar(filename):
+        return send_from_directory(app.config["USER_AVATAR_UPLOAD_FOLDER"], filename)
+
+    @app.route("/uploads/communities/<path:filename>", methods=["GET"])
+    def serve_community_avatar(filename):
+        return send_from_directory(app.config["COMMUNITY_AVATAR_UPLOAD_FOLDER"], filename)
+
     @app.route("/health", methods=["GET"])
     def health():
         return jsonify({"status": "ok"}), 200
