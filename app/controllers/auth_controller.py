@@ -1,12 +1,17 @@
+import os
 import re
+import secrets
 
-from flask import jsonify, request
+from werkzeug.utils import secure_filename
+
+from flask import current_app, jsonify, request
 from flask_jwt_extended import create_access_token, current_user
 
 from app.extensions import db
-from app.models import User
+from app.models import PasswordReset, User
 from app.models.user_model import EDUCATION_LEVELS, PUBLIC_REGISTER_ROLES
-
+from app.utils import utc_now
+from app.utils.image_upload import save_entity_image, validate_image_file
 
 def _resolve_public_role(data):
     """
@@ -144,9 +149,15 @@ def register():
         user.set_password(str(data.get("password")))
         db.session.add(user)
         db.session.commit()
-        return jsonify({"message": "User registered successfully.", "user": user.to_dict()}), 201
-    except Exception:
+        access_token = create_access_token(identity=str(user.id))
+        return jsonify({
+            "message": "User registered successfully.",
+            "access_token": access_token,
+            "user": user.to_dict(),
+        }), 201
+    except Exception as exc:
         db.session.rollback()
+        current_app.logger.exception("Registration failed: %s", exc)
         return jsonify({"error": "An internal server error occurred."}), 500
 
 
@@ -205,6 +216,158 @@ def update_profile():
             current_user.set_password(password)
         db.session.commit()
         return jsonify({"message": "Profile updated successfully.", "user": current_user.to_dict()}), 200
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An internal server error occurred."}), 500
+
+
+ALLOWED_RESUME_EXTENSIONS = {".pdf", ".doc", ".docx"}
+MAX_RESUME_BYTES = 5 * 1024 * 1024
+
+
+def upload_resume():
+    if current_user.role != "seeker":
+        return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
+
+    file = request.files.get("file")
+    if not file or not file.filename:
+        return jsonify({"errors": ["file is required."]}), 400
+
+    original = secure_filename(file.filename)
+    ext = os.path.splitext(original)[1].lower()
+    if ext not in ALLOWED_RESUME_EXTENSIONS:
+        return jsonify({"errors": ["Resume must be PDF, DOC, or DOCX."]}), 400
+
+    file.seek(0, os.SEEK_END)
+    size = file.tell()
+    file.seek(0)
+    if size > MAX_RESUME_BYTES:
+        return jsonify({"errors": ["Resume file must be 5MB or smaller."]}), 400
+
+    upload_dir = current_app.config["RESUME_UPLOAD_FOLDER"]
+    os.makedirs(upload_dir, exist_ok=True)
+    stored_name = f"{current_user.id}_{original}"
+    file_path = os.path.join(upload_dir, stored_name)
+    file.save(file_path)
+
+    resume_url = f"/uploads/resumes/{stored_name}"
+    try:
+        current_user.resume_url = resume_url
+        db.session.commit()
+        return jsonify({
+            "message": "Resume uploaded successfully.",
+            "resume_url": resume_url,
+            "user": current_user.to_dict(),
+        }), 200
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An internal server error occurred."}), 500
+
+
+def upload_avatar():
+    file = request.files.get("avatar") or request.files.get("file")
+    if not file or not file.filename:
+        return jsonify({"errors": ["avatar is required."]}), 400
+
+    _, error = validate_image_file(file)
+    if error:
+        return jsonify({"errors": [error]}), 400
+
+    try:
+        url, error = save_entity_image(
+            file,
+            current_app.config["USER_AVATAR_UPLOAD_FOLDER"],
+            current_user.id,
+            "/uploads/users",
+        )
+        if error:
+            return jsonify({"errors": [error]}), 400
+        current_user.avatar_url = url
+        db.session.commit()
+        return jsonify({
+            "message": "Profile photo uploaded.",
+            "user": current_user.to_dict(),
+        }), 200
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An internal server error occurred."}), 500
+
+
+def forgot_password():
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required."}), 400
+
+    email = data.get("email")
+    if email is None or str(email).strip() == "":
+        return jsonify({"errors": ["email is required."]}), 400
+
+    email_str = str(email).strip().lower()
+    user = User.query.filter_by(email=email_str).first()
+    if not user:
+        return jsonify({
+            "message": "If that email is registered, a password reset token has been generated.",
+        }), 200
+
+    try:
+        from flask import current_app
+
+        PasswordReset.query.filter_by(user_id=user.id, used_at=None).delete()
+        raw_token = secrets.token_urlsafe(32)
+        expires_at = utc_now() + current_app.config["PASSWORD_RESET_TOKEN_EXPIRES"]
+        reset = PasswordReset(user_id=user.id, expires_at=expires_at)
+        reset.set_token(raw_token)
+        db.session.add(reset)
+        db.session.commit()
+        return jsonify({
+            "message": "Password reset token generated.",
+            "reset_token": raw_token,
+            "expires_at": expires_at.isoformat(),
+        }), 200
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An internal server error occurred."}), 500
+
+
+def reset_password():
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required."}), 400
+
+    errors = []
+    email = data.get("email")
+    token = data.get("token")
+    password = data.get("password") or data.get("new_password")
+
+    if email is None or str(email).strip() == "":
+        errors.append("email is required.")
+    if token is None or str(token).strip() == "":
+        errors.append("token is required.")
+    if password is None or str(password).strip() == "":
+        errors.append("password is required.")
+    elif len(str(password)) < 6:
+        errors.append("password must be at least 6 characters long.")
+
+    if errors:
+        return jsonify({"errors": errors}), 400
+
+    user = User.query.filter_by(email=str(email).strip().lower()).first()
+    if not user:
+        return jsonify({"error": "Invalid or expired reset token."}), 400
+
+    reset = (
+        PasswordReset.query.filter_by(user_id=user.id, used_at=None)
+        .order_by(PasswordReset.id.desc())
+        .first()
+    )
+    if not reset or not reset.is_valid() or not reset.check_token(str(token)):
+        return jsonify({"error": "Invalid or expired reset token."}), 400
+
+    try:
+        user.set_password(str(password))
+        reset.used_at = utc_now()
+        db.session.commit()
+        return jsonify({"message": "Password reset successfully."}), 200
     except Exception:
         db.session.rollback()
         return jsonify({"error": "An internal server error occurred."}), 500

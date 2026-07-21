@@ -26,6 +26,9 @@ from app.models.post_mention_model import PostMention
 from app.models.job_referral_model import JobReferral
 from app.models.mentor_profile_model import MentorProfile
 from app.models.mentorship_session_model import MentorshipSession
+from app.models.password_reset_model import PasswordReset
+from app.models.saved_search_model import SavedSearch
+from app.models.application_status_log_model import ApplicationStatusLog
 
 __all__ = [
     "User",
@@ -57,4 +60,7 @@ __all__ = [
     "JobReferral",
     "MentorProfile",
     "MentorshipSession",
+    "PasswordReset",
+    "SavedSearch",
+    "ApplicationStatusLog",
 ]

@@ -24,7 +24,12 @@ class User(db.Model):
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=utc_now)
 
-    skills = db.relationship("UserSkill", back_populates="user", cascade="all, delete-orphan")
+    skills = db.relationship(
+        "UserSkill",
+        back_populates="user",
+        foreign_keys="UserSkill.user_id",
+        cascade="all, delete-orphan",
+    )
     interests = db.relationship("UserInterest", back_populates="user", cascade="all, delete-orphan")
     company = db.relationship("Company", back_populates="owner", uselist=False)
     posted_jobs = db.relationship("Job", back_populates="poster", foreign_keys="Job.posted_by")
@@ -34,6 +39,8 @@ class User(db.Model):
     reports_filed = db.relationship("Report", back_populates="reporter", foreign_keys="Report.reporter_id")
     community_memberships = db.relationship("CommunityMember", back_populates="user")
     mentor_profile = db.relationship("MentorProfile", back_populates="user", uselist=False)
+    password_resets = db.relationship("PasswordReset", back_populates="user", cascade="all, delete-orphan")
+    saved_searches = db.relationship("SavedSearch", back_populates="user", cascade="all, delete-orphan")
 
     def set_password(self, password):
         self.password = generate_password_hash(password)

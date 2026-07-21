@@ -1,6 +1,9 @@
-from flask import jsonify, request
+from flask import current_app, jsonify, request
 from flask_jwt_extended import current_user
 from sqlalchemy import or_
+import os
+
+from werkzeug.utils import secure_filename
 
 from app.extensions import db
 from app.models import Comment, Community, Hashtag, Job, Post, PostBookmark, PostReaction
@@ -15,6 +18,61 @@ from app.utils.social_helpers import (
     sync_mentions_post,
     sync_post_media,
 )
+
+
+ALLOWED_POST_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+MAX_POST_IMAGE_BYTES = 5 * 1024 * 1024
+
+
+def _validate_post_image(file):
+    if not file or not file.filename:
+        return None, None
+    original = secure_filename(file.filename)
+    ext = os.path.splitext(original)[1].lower()
+    if ext not in ALLOWED_POST_IMAGE_EXTENSIONS:
+        return None, "Image must be JPG, JPEG, PNG, or WEBP."
+    file.seek(0, os.SEEK_END)
+    size = file.tell()
+    file.seek(0)
+    if size > MAX_POST_IMAGE_BYTES:
+        return None, "Image file must be 5MB or smaller."
+    return original, None
+
+
+def _save_post_image(post, file):
+    original, error = _validate_post_image(file)
+    if error:
+        return None, error
+    if not original:
+        return None, None
+
+    upload_dir = current_app.config["POST_IMAGE_UPLOAD_FOLDER"]
+    os.makedirs(upload_dir, exist_ok=True)
+    stored_name = f"{post.id}_{original}"
+    file_path = os.path.join(upload_dir, stored_name)
+    file.save(file_path)
+    image_url = f"/uploads/posts/{stored_name}"
+    post.image_url = image_url
+    return image_url, None
+
+
+def _parse_create_post_data():
+    if request.content_type and "multipart/form-data" in request.content_type:
+        form = request.form
+        data = {
+            "title": form.get("title"),
+            "body": form.get("body"),
+            "type": form.get("type") or "discussion",
+            "job_id": form.get("job_id") or None,
+            "community_id": form.get("community_id") or None,
+            "link_url": form.get("link_url") or None,
+        }
+        if data["job_id"] == "":
+            data["job_id"] = None
+        if data["community_id"] == "":
+            data["community_id"] = None
+        return data, request.files.get("image")
+    return request.get_json(silent=True), None
 
 
 def get_posts():
@@ -57,7 +115,7 @@ def _validate_community_post(community_id):
 
 
 def create_post():
-    data = request.get_json(silent=True)
+    data, image_file = _parse_create_post_data()
     if not data:
         return jsonify({"error": "Request body is required."}), 400
 
@@ -75,10 +133,29 @@ def create_post():
     if post_type not in POST_TYPES:
         errors.append(f"type must be one of: {', '.join(POST_TYPES)}.")
     if job_id is not None and job_id != "":
-        if not db.session.get(Job, job_id):
+        try:
+            job_id = int(job_id)
+        except (TypeError, ValueError):
+            errors.append("job_id must be an integer.")
+            job_id = None
+        if job_id is not None and not db.session.get(Job, job_id):
             errors.append("job_id not found.")
     else:
         job_id = None
+
+    if community_id is not None and community_id != "":
+        try:
+            community_id = int(community_id)
+        except (TypeError, ValueError):
+            errors.append("community_id must be an integer.")
+            community_id = None
+    else:
+        community_id = None
+
+    if image_file and image_file.filename:
+        _, image_error = _validate_post_image(image_file)
+        if image_error:
+            errors.append(image_error)
 
     if errors:
         return jsonify({"errors": errors}), 400
@@ -100,6 +177,12 @@ def create_post():
         db.session.add(post)
         db.session.flush()
 
+        if image_file and image_file.filename:
+            _, image_error = _save_post_image(post, image_file)
+            if image_error:
+                db.session.rollback()
+                return jsonify({"errors": [image_error]}), 400
+
         hashtag_names = data.get("hashtags") or extract_hashtags(body)
         sync_hashtags(post, hashtag_names)
         sync_post_media(post, data.get("media"))
@@ -107,6 +190,35 @@ def create_post():
 
         db.session.commit()
         return jsonify({"message": "Post created.", "post": post.to_dict(include_details=True)}), 201
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An internal server error occurred."}), 500
+
+
+def upload_post_image(post_id):
+    post = db.session.get(Post, post_id)
+    if not post:
+        return jsonify({"error": "Post not found."}), 404
+    if post.author_id != current_user.id and current_user.role != "admin":
+        return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
+
+    file = request.files.get("image")
+    if not file or not file.filename:
+        return jsonify({"errors": ["image is required."]}), 400
+
+    _, image_error = _validate_post_image(file)
+    if image_error:
+        return jsonify({"errors": [image_error]}), 400
+
+    try:
+        _, image_error = _save_post_image(post, file)
+        if image_error:
+            return jsonify({"errors": [image_error]}), 400
+        db.session.commit()
+        return jsonify({
+            "message": "Post image uploaded.",
+            "post": post.to_dict(include_details=True),
+        }), 200
     except Exception:
         db.session.rollback()
         return jsonify({"error": "An internal server error occurred."}), 500

@@ -4,7 +4,7 @@ from flask import jsonify, request
 from flask_jwt_extended import current_user
 
 from app.extensions import db
-from app.models import Skill, UserSkill
+from app.models import Application, Job, Skill, UserSkill
 from app.models.user_skill_model import SKILL_LEVELS
 from app.utils.csv_utils import parse_csv_file, rows_to_csv_response
 
@@ -69,6 +69,32 @@ def delete_my_skill(user_skill_id):
         db.session.delete(row)
         db.session.commit()
         return jsonify({"message": "User skill deleted."}), 200
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An internal server error occurred."}), 500
+
+
+def verify_user_skill(user_skill_id):
+    row = db.session.get(UserSkill, user_skill_id)
+    if not row:
+        return jsonify({"error": "User skill not found."}), 404
+
+    job_ids = [j.id for j in Job.query.filter_by(posted_by=current_user.id).all()]
+    if not job_ids:
+        return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
+
+    related = Application.query.filter(
+        Application.job_id.in_(job_ids),
+        Application.seeker_id == row.user_id,
+    ).first()
+    if not related:
+        return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
+
+    try:
+        row.verified = True
+        row.verified_by = current_user.id
+        db.session.commit()
+        return jsonify({"message": "Skill verified.", "user_skill": row.to_dict()}), 200
     except Exception:
         db.session.rollback()
         return jsonify({"error": "An internal server error occurred."}), 500

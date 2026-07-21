@@ -17,14 +17,41 @@ accesslog = "-"
 errorlog = "-"
 
 app = create_app()
-CORS(app)
+
+
+def _cors_origins():
+    raw = os.environ.get("CORS_ORIGINS", "").strip()
+    if raw:
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+
+_cors_origin_list = _cors_origins()
+
+CORS(
+    app,
+    resources={
+        r"/api/*": {"origins": _cors_origin_list},
+        r"/uploads/*": {"origins": _cors_origin_list},
+    },
+    supports_credentials=True,
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+)
 
 _SCHEMA_ALTERS = [
     "ALTER TABLE posts ADD COLUMN community_id INT NULL",
     "ALTER TABLE posts ADD COLUMN link_url VARCHAR(500) NULL",
+    "ALTER TABLE posts ADD COLUMN image_url VARCHAR(500) NULL",
     "ALTER TABLE comments ADD COLUMN parent_id INT NULL",
     "ALTER TABLE mentorships ADD COLUMN community_id INT NULL",
     "ALTER TABLE mentorships ADD COLUMN focus_area VARCHAR(30) NULL",
+    "ALTER TABLE companies ADD COLUMN is_verified TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE user_skills ADD COLUMN verified TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE user_skills ADD COLUMN verified_by INT NULL",
+    "ALTER TABLE jobs ADD COLUMN image_url VARCHAR(500) NULL",
+    "ALTER TABLE companies ADD COLUMN founded_year INT NULL",
+    "ALTER TABLE companies ADD COLUMN company_size VARCHAR(50) NULL",
 ]
 
 
@@ -69,9 +96,29 @@ if __name__ == "__main__":
         from waitress import serve
 
         print(f"Starting server on http://127.0.0.1:{port}")
+        print(
+            f"Database target: {app.config['DB_HOST']}:{app.config['DB_PORT']}/{app.config['DB_NAME']}"
+        )
         serve(app, host="0.0.0.0", port=port, threads=4)
     else:
         subprocess.run(
-            [sys.executable, "-m", "gunicorn", "-c", "run", "run:app"],
+            [
+                sys.executable,
+                "-m",
+                "gunicorn",
+                "-b",
+                bind,
+                "-w",
+                str(workers),
+                "--threads",
+                str(threads),
+                "--timeout",
+                str(timeout),
+                "--access-logfile",
+                accesslog,
+                "--error-logfile",
+                errorlog,
+                "run:app",
+            ],
             check=True,
         )

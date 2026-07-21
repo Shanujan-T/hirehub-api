@@ -1,16 +1,18 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app.config import Config
-from app.extensions import db, jwt
+from app.extensions import db, jwt, limiter
 from app.routes import register_blueprints
 
 
-def create_app():
+def create_app(config_class=Config):
     app = Flask(__name__)
-    app.config.from_object(Config)
+    app.config.from_object(config_class)
     db.init_app(app)
     jwt.init_app(app)
+    limiter.init_app(app)
+    limiter.enabled = app.config.get("RATELIMIT_ENABLED", True)
 
     # Import all models so metadata is registered before create_all
     from app.models import User  # triggers app.models.__init__ (all models)
@@ -21,6 +23,30 @@ def create_app():
         return db.session.get(User, int(identity))
 
     register_blueprints(app)
+
+    @app.route("/uploads/resumes/<path:filename>", methods=["GET"])
+    def serve_resume(filename):
+        return send_from_directory(app.config["RESUME_UPLOAD_FOLDER"], filename)
+
+    @app.route("/uploads/posts/<path:filename>", methods=["GET"])
+    def serve_post_image(filename):
+        return send_from_directory(app.config["POST_IMAGE_UPLOAD_FOLDER"], filename)
+
+    @app.route("/uploads/jobs/<path:filename>", methods=["GET"])
+    def serve_job_image(filename):
+        return send_from_directory(app.config["JOB_IMAGE_UPLOAD_FOLDER"], filename)
+
+    @app.route("/uploads/companies/<path:filename>", methods=["GET"])
+    def serve_company_logo(filename):
+        return send_from_directory(app.config["COMPANY_LOGO_UPLOAD_FOLDER"], filename)
+
+    @app.route("/uploads/users/<path:filename>", methods=["GET"])
+    def serve_user_avatar(filename):
+        return send_from_directory(app.config["USER_AVATAR_UPLOAD_FOLDER"], filename)
+
+    @app.route("/uploads/communities/<path:filename>", methods=["GET"])
+    def serve_community_avatar(filename):
+        return send_from_directory(app.config["COMMUNITY_AVATAR_UPLOAD_FOLDER"], filename)
 
     @app.route("/health", methods=["GET"])
     def health():

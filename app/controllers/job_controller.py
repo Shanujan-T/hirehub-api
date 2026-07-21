@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from flask import jsonify, request
+from flask import current_app, jsonify, request
 from flask_jwt_extended import current_user
 from sqlalchemy import or_
 
@@ -8,6 +8,7 @@ from app.extensions import db
 from app.models import Application, Company, Job, JobSkill, SavedJob, Skill, UserSkill
 from app.models.job_model import EXPERIENCE_LEVELS, JOB_STATUSES, JOB_TYPES
 from app.utils.csv_utils import parse_csv_file, rows_to_csv_response
+from app.utils.image_upload import save_image_file, validate_image_file
 from app.utils.pdf_utils import document_pdf_response, table_pdf_response
 
 
@@ -83,6 +84,53 @@ def _can_manage_job(job):
     )
 
 
+def _parse_skill_ids(raw_value, form_list=None):
+    if form_list:
+        return form_list
+    if raw_value in (None, ""):
+        return []
+    if isinstance(raw_value, list):
+        return raw_value
+    if isinstance(raw_value, str):
+        return [part.strip() for part in raw_value.split(",") if part.strip()]
+    return []
+
+
+def _parse_job_request_data():
+    if request.content_type and "multipart/form-data" in request.content_type:
+        form = request.form
+        data = {
+            "title": form.get("title"),
+            "description": form.get("description"),
+            "category": form.get("category"),
+            "job_type": form.get("job_type") or "full_time",
+            "experience_level": form.get("experience_level") or "entry",
+            "location": form.get("location"),
+            "salary_min": form.get("salary_min"),
+            "salary_max": form.get("salary_max"),
+            "deadline": form.get("deadline"),
+            "skill_ids": _parse_skill_ids(form.get("skill_ids"), form.getlist("skill_ids")),
+            "remove_image": form.get("remove_image"),
+        }
+        return data, request.files.get("image")
+    return request.get_json(silent=True), None
+
+
+def _save_job_image(job, file):
+    _, error = validate_image_file(file)
+    if error:
+        return None, error
+
+    upload_dir = current_app.config["JOB_IMAGE_UPLOAD_FOLDER"]
+    original, _ = validate_image_file(file)
+    stored_name = f"{job.id}_{original}"
+    _, error = save_image_file(file, upload_dir, stored_name)
+    if error:
+        return None, error
+    job.image_url = f"/uploads/jobs/{stored_name}"
+    return job.image_url, None
+
+
 def get_jobs():
     query = Job.query
     q = (request.args.get("q") or "").strip().lower()
@@ -93,7 +141,14 @@ def get_jobs():
     company_id = request.args.get("company_id")
 
     if q:
-        query = query.filter(or_(Job.title.ilike(f"%{q}%"), Job.description.ilike(f"%{q}%")))
+        pattern = f"%{q}%"
+        query = query.filter(
+            or_(
+                Job.title.ilike(pattern),
+                Job.description.ilike(pattern),
+                Job.category.ilike(pattern),
+            )
+        )
     if location:
         query = query.filter(Job.location.ilike(f"%{location}%"))
     if category:
@@ -113,12 +168,19 @@ def get_jobs():
 
 
 def get_recommended_jobs():
-    user_skill_ids = {us.skill_id for us in UserSkill.query.filter_by(user_id=current_user.id).all()}
+    user_skills = UserSkill.query.filter_by(user_id=current_user.id).all()
+    user_skill_ids = {us.skill_id for us in user_skills}
+    skill_names = {
+        us.skill_id: us.skill.name
+        for us in user_skills
+        if us.skill
+    }
     jobs = Job.query.filter_by(status="open").all()
     scored = []
     for job in jobs:
         job_skill_ids = {js.skill_id for js in job.job_skills}
-        overlap = len(user_skill_ids & job_skill_ids)
+        overlap_ids = user_skill_ids & job_skill_ids
+        overlap = len(overlap_ids)
         location_boost = 0
         if (
             current_user.location
@@ -128,10 +190,14 @@ def get_recommended_jobs():
             location_boost = 2
         score = overlap * 3 + location_boost
         if score > 0:
-            scored.append((score, job))
+            matched_skills = [skill_names[sid] for sid in overlap_ids if sid in skill_names]
+            scored.append((score, job, matched_skills))
     scored.sort(key=lambda x: (-x[0], -x[1].id))
     return jsonify({
-        "jobs": [{**j.to_dict(), "match_score": s} for s, j in scored]
+        "jobs": [
+            {**j.to_dict(), "match_score": s, "matched_skills": matched}
+            for s, j, matched in scored
+        ]
     }), 200
 
 
@@ -153,10 +219,15 @@ def get_job_applications(job_id):
 
 
 def create_job():
-    data = request.get_json(silent=True)
+    data, image_file = _parse_job_request_data()
     errors = _validate_job_payload(data)
     if errors:
         return jsonify({"errors": errors}), 400
+
+    if image_file and image_file.filename:
+        _, image_error = validate_image_file(image_file)
+        if image_error:
+            return jsonify({"errors": [image_error]}), 400
 
     company = Company.query.filter_by(owner_id=current_user.id).first()
     if not company:
@@ -181,6 +252,13 @@ def create_job():
         db.session.add(job)
         db.session.flush()
         _attach_skills(job, data.get("skill_ids") or [])
+
+        if image_file and image_file.filename:
+            _, image_error = _save_job_image(job, image_file)
+            if image_error:
+                db.session.rollback()
+                return jsonify({"errors": [image_error]}), 400
+
         db.session.commit()
         return jsonify({"message": "Job created successfully.", "job": job.to_dict()}), 201
     except Exception:
@@ -195,10 +273,15 @@ def update_job(job_id):
     if not _can_manage_job(job):
         return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
 
-    data = request.get_json(silent=True)
+    data, image_file = _parse_job_request_data()
     errors = _validate_job_payload(data, partial=True)
     if errors:
         return jsonify({"errors": errors}), 400
+
+    if image_file and image_file.filename:
+        _, image_error = validate_image_file(image_file)
+        if image_error:
+            return jsonify({"errors": [image_error]}), 400
 
     try:
         if "title" in data:
@@ -222,8 +305,45 @@ def update_job(job_id):
             job.deadline = None if d in (None, "invalid") else d
         if "skill_ids" in data:
             _attach_skills(job, data.get("skill_ids") or [])
+
+        if data.get("remove_image") in ("1", "true", "yes"):
+            job.image_url = None
+        elif image_file and image_file.filename:
+            _, image_error = _save_job_image(job, image_file)
+            if image_error:
+                return jsonify({"errors": [image_error]}), 400
+
         db.session.commit()
         return jsonify({"message": "Job updated successfully.", "job": job.to_dict()}), 200
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An internal server error occurred."}), 500
+
+
+def upload_job_image(job_id):
+    job = db.session.get(Job, job_id)
+    if not job:
+        return jsonify({"error": "Job not found."}), 404
+    if not _can_manage_job(job):
+        return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
+
+    file = request.files.get("image")
+    if not file or not file.filename:
+        return jsonify({"errors": ["image is required."]}), 400
+
+    _, image_error = validate_image_file(file)
+    if image_error:
+        return jsonify({"errors": [image_error]}), 400
+
+    try:
+        _, image_error = _save_job_image(job, file)
+        if image_error:
+            return jsonify({"errors": [image_error]}), 400
+        db.session.commit()
+        return jsonify({
+            "message": "Job image uploaded.",
+            "job": job.to_dict(),
+        }), 200
     except Exception:
         db.session.rollback()
         return jsonify({"error": "An internal server error occurred."}), 500
@@ -375,6 +495,64 @@ def import_jobs_csv():
     except Exception:
         db.session.rollback()
         return jsonify({"error": "An internal server error occurred."}), 500
+
+
+def get_similar_jobs(job_id):
+    job = db.session.get(Job, job_id)
+    if not job:
+        return jsonify({"error": "Job not found."}), 404
+
+    source_skill_ids = {js.skill_id for js in job.job_skills}
+    if not source_skill_ids:
+        return jsonify({"jobs": []}), 200
+
+    candidates = (
+        Job.query.filter(Job.id != job.id, Job.status == "open")
+        .order_by(Job.id.desc())
+        .all()
+    )
+    scored = []
+    for other in candidates:
+        other_skill_ids = {js.skill_id for js in other.job_skills}
+        overlap = len(source_skill_ids & other_skill_ids)
+        if overlap > 0:
+            scored.append((overlap, other))
+    scored.sort(key=lambda x: (-x[0], -x[1].id))
+    top = scored[:3]
+    return jsonify({"jobs": [j.to_dict() for _, j in top]}), 200
+
+
+def export_job_applicants_csv(job_id):
+    job = db.session.get(Job, job_id)
+    if not job:
+        return jsonify({"error": "Job not found."}), 404
+    if not _can_manage_job(job):
+        return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
+
+    apps = Application.query.filter_by(job_id=job.id).order_by(Application.id).all()
+    headers = [
+        "candidate_name",
+        "email",
+        "location",
+        "education",
+        "cover_letter",
+        "status",
+        "applied_date",
+    ]
+    rows = []
+    for app_row in apps:
+        seeker = app_row.seeker
+        rows.append([
+            seeker.full_name if seeker else "",
+            seeker.email if seeker else "",
+            seeker.location or "" if seeker else "",
+            seeker.education_level or "" if seeker else "",
+            app_row.cover_letter or "",
+            app_row.status,
+            app_row.created_at.isoformat() if app_row.created_at else "",
+        ])
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    return rows_to_csv_response(f"job-{job.id}-applicants-{today}.csv", headers, rows)
 
 
 def save_job(job_id):

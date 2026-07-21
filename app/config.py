@@ -1,10 +1,13 @@
 from datetime import timedelta
 import os
+from pathlib import Path
 from urllib.parse import quote_plus
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Always load hirehub-api/.env regardless of process working directory.
+_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(_ENV_FILE)
 
 
 def _normalize_mysql_url(url: str) -> str:
@@ -48,3 +51,46 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(
         minutes=int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES_MINUTES", "1440"))
     )
+    PASSWORD_RESET_TOKEN_EXPIRES = timedelta(
+        minutes=int(os.getenv("PASSWORD_RESET_TOKEN_EXPIRES_MINUTES", "60"))
+    )
+    RATELIMIT_STORAGE_URI = os.getenv("RATELIMIT_STORAGE_URI", "memory://")
+    RATELIMIT_ENABLED = os.getenv("RATELIMIT_ENABLED", "true").lower() in ("1", "true", "yes")
+    RESUME_UPLOAD_FOLDER = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "uploads",
+        "resumes",
+    )
+    POST_IMAGE_UPLOAD_FOLDER = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "uploads",
+        "posts",
+    )
+    JOB_IMAGE_UPLOAD_FOLDER = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "uploads",
+        "jobs",
+    )
+    COMPANY_LOGO_UPLOAD_FOLDER = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "uploads",
+        "companies",
+    )
+    USER_AVATAR_UPLOAD_FOLDER = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "uploads",
+        "users",
+    )
+    COMMUNITY_AVATAR_UPLOAD_FOLDER = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "uploads",
+        "communities",
+    )
+
+
+class TestConfig(Config):
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+    SQLALCHEMY_ENGINE_OPTIONS = {}
+    JWT_SECRET_KEY = "test-secret-key"
+    RATELIMIT_ENABLED = False

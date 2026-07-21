@@ -1,12 +1,13 @@
 from datetime import datetime
 
-from flask import jsonify, request
+from flask import current_app, jsonify, request
 from flask_jwt_extended import current_user
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 
 from app.extensions import db
-from app.models import Company
+from app.models import Company, Job
 from app.utils.csv_utils import rows_to_csv_response
+from app.utils.image_upload import save_entity_image, validate_image_file
 
 
 def _validate_company_payload(data, company_id=None):
@@ -42,14 +43,29 @@ def get_companies():
         query = query.filter(Company.location.ilike(f"%{location}%"))
 
     companies = query.order_by(Company.id.desc()).all()
-    return jsonify({"companies": [c.to_dict() for c in companies]}), 200
+    open_counts = dict(
+        db.session.query(Job.company_id, func.count(Job.id))
+        .filter(Job.status == "open")
+        .group_by(Job.company_id)
+        .all()
+    )
+    return jsonify({
+        "companies": [
+            c.to_dict(open_jobs_count=int(open_counts.get(c.id, 0)))
+            for c in companies
+        ]
+    }), 200
 
 
 def get_company(company_id):
     company = db.session.get(Company, company_id)
     if not company:
         return jsonify({"error": "Company not found."}), 404
-    return jsonify({"company": company.to_dict(include_jobs=True)}), 200
+    open_count = (
+        Job.query.filter_by(company_id=company.id, status="open").count()
+    )
+    data = company.to_dict(include_jobs=True, open_jobs_count=open_count)
+    return jsonify({"company": data}), 200
 
 
 def get_my_company():
@@ -80,6 +96,8 @@ def create_company():
             website=(str(data.get("website")).strip() if data.get("website") else None),
             location=(str(data.get("location")).strip() if data.get("location") else None),
             logo_url=(str(data.get("logo_url")).strip() if data.get("logo_url") else None),
+            founded_year=int(data["founded_year"]) if data.get("founded_year") not in (None, "") else None,
+            company_size=(str(data.get("company_size")).strip() if data.get("company_size") else None),
         )
         db.session.add(company)
         db.session.commit()
@@ -109,7 +127,7 @@ def update_company(company_id):
         return jsonify({"errors": errors}), 400
 
     try:
-        for field in ("name", "industry", "description", "website", "location", "logo_url"):
+        for field in ("name", "industry", "description", "website", "location", "logo_url", "company_size"):
             if field in data:
                 val = data.get(field)
                 if field == "name":
@@ -118,6 +136,9 @@ def update_company(company_id):
                     company.description = val
                 else:
                     setattr(company, field, str(val).strip() if val not in (None, "") else None)
+        if "founded_year" in data:
+            val = data.get("founded_year")
+            company.founded_year = int(val) if val not in (None, "") else None
         db.session.commit()
         return jsonify({"message": "Company updated successfully.", "company": company.to_dict()}), 200
     except Exception:
@@ -147,3 +168,77 @@ def export_companies_csv():
     ]
     today = datetime.utcnow().strftime("%Y-%m-%d")
     return rows_to_csv_response(f"companies-{today}.csv", headers, rows)
+
+
+def verify_company(company_id):
+    company = db.session.get(Company, company_id)
+    if not company:
+        return jsonify({"error": "Company not found."}), 404
+
+    data = request.get_json(silent=True) or {}
+    is_verified = data.get("is_verified", True)
+    if not isinstance(is_verified, bool):
+        return jsonify({"errors": ["is_verified must be a boolean."]}), 400
+
+    try:
+        company.is_verified = is_verified
+        db.session.commit()
+        return jsonify({
+            "message": "Company verification updated.",
+            "company": company.to_dict(),
+        }), 200
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An internal server error occurred."}), 500
+
+
+def _can_manage_company(company):
+    return current_user.role == "admin" or (
+        current_user.role == "employer" and company.owner_id == current_user.id
+    )
+
+
+def _save_company_logo(company, file):
+    _, error = validate_image_file(file)
+    if error:
+        return None, error
+    url, error = save_entity_image(
+        file,
+        current_app.config["COMPANY_LOGO_UPLOAD_FOLDER"],
+        company.id,
+        "/uploads/companies",
+    )
+    if error:
+        return None, error
+    company.logo_url = url
+    return company.logo_url, None
+
+
+def upload_company_logo(company_id):
+    company = db.session.get(Company, company_id)
+    if not company:
+        return jsonify({"error": "Company not found."}), 404
+    if not _can_manage_company(company):
+        return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
+
+    file = request.files.get("logo")
+    if not file or not file.filename:
+        return jsonify({"errors": ["logo is required."]}), 400
+
+    _, error = validate_image_file(file)
+    if error:
+        return jsonify({"errors": [error]}), 400
+
+    try:
+        _, error = _save_company_logo(company, file)
+        if error:
+            return jsonify({"errors": [error]}), 400
+        db.session.commit()
+        open_count = Job.query.filter_by(company_id=company.id, status="open").count()
+        return jsonify({
+            "message": "Company logo uploaded.",
+            "company": company.to_dict(open_jobs_count=open_count),
+        }), 200
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An internal server error occurred."}), 500
