@@ -1,8 +1,7 @@
+import os
 import re
 import secrets
 
-import os
-import re
 from werkzeug.utils import secure_filename
 
 from flask import current_app, jsonify, request
@@ -12,6 +11,7 @@ from app.extensions import db
 from app.models import PasswordReset, User
 from app.models.user_model import EDUCATION_LEVELS, PUBLIC_REGISTER_ROLES
 from app.utils import utc_now
+from app.utils.image_upload import save_entity_image, validate_image_file
 
 def _resolve_public_role(data):
     """
@@ -149,9 +149,15 @@ def register():
         user.set_password(str(data.get("password")))
         db.session.add(user)
         db.session.commit()
-        return jsonify({"message": "User registered successfully.", "user": user.to_dict()}), 201
-    except Exception:
+        access_token = create_access_token(identity=str(user.id))
+        return jsonify({
+            "message": "User registered successfully.",
+            "access_token": access_token,
+            "user": user.to_dict(),
+        }), 201
+    except Exception as exc:
         db.session.rollback()
+        current_app.logger.exception("Registration failed: %s", exc)
         return jsonify({"error": "An internal server error occurred."}), 500
 
 
@@ -251,6 +257,35 @@ def upload_resume():
         return jsonify({
             "message": "Resume uploaded successfully.",
             "resume_url": resume_url,
+            "user": current_user.to_dict(),
+        }), 200
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An internal server error occurred."}), 500
+
+
+def upload_avatar():
+    file = request.files.get("avatar") or request.files.get("file")
+    if not file or not file.filename:
+        return jsonify({"errors": ["avatar is required."]}), 400
+
+    _, error = validate_image_file(file)
+    if error:
+        return jsonify({"errors": [error]}), 400
+
+    try:
+        url, error = save_entity_image(
+            file,
+            current_app.config["USER_AVATAR_UPLOAD_FOLDER"],
+            current_user.id,
+            "/uploads/users",
+        )
+        if error:
+            return jsonify({"errors": [error]}), 400
+        current_user.avatar_url = url
+        db.session.commit()
+        return jsonify({
+            "message": "Profile photo uploaded.",
             "user": current_user.to_dict(),
         }), 200
     except Exception:
