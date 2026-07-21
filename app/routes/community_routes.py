@@ -43,6 +43,12 @@ def update_community(community_id):
     return ctrl.update_community(community_id)
 
 
+@communities_bp.route("/<int:community_id>/logo", methods=["POST"])
+@jwt_required_active
+def upload_community_logo(community_id):
+    return ctrl.upload_community_logo(community_id)
+
+
 @communities_bp.route("/<int:community_id>", methods=["DELETE"])
 @jwt_required_active
 def delete_community(community_id):
