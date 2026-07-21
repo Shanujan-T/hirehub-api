@@ -13,10 +13,14 @@ def _seeker_dashboard():
     # Reuse recommendation logic without returning a Response
     from app.models import Job as JobModel
 
-    user_skill_ids = {us.skill_id for us in UserSkill.query.filter_by(user_id=current_user.id).all()}
+    user_skills = UserSkill.query.filter_by(user_id=current_user.id).all()
+    user_skill_ids = {us.skill_id for us in user_skills}
+    skill_names = {us.skill_id: us.skill.name for us in user_skills if us.skill}
     recommended = []
     for job in JobModel.query.filter_by(status="open").all():
-        overlap = len(user_skill_ids & {js.skill_id for js in job.job_skills})
+        job_skill_ids = {js.skill_id for js in job.job_skills}
+        overlap_ids = user_skill_ids & job_skill_ids
+        overlap = len(overlap_ids)
         boost = 0
         if (
             current_user.location
@@ -26,14 +30,18 @@ def _seeker_dashboard():
             boost = 2
         score = overlap * 3 + boost
         if score > 0:
-            recommended.append((score, job))
+            matched_skills = [skill_names[sid] for sid in overlap_ids if sid in skill_names]
+            recommended.append((score, job, matched_skills))
     recommended.sort(key=lambda x: (-x[0], -x[1].id))
 
     return {
         "role": "seeker",
         "applications_by_status": dict(by_status),
         "applications": [a.to_dict() for a in apps[:20]],
-        "recommended_jobs": [{**j.to_dict(), "match_score": s} for s, j in recommended[:10]],
+        "recommended_jobs": [
+            {**j.to_dict(), "match_score": s, "matched_skills": matched}
+            for s, j, matched in recommended[:10]
+        ],
     }
 
 

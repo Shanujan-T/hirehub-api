@@ -22,6 +22,7 @@ class Job(db.Model):
     salary_max = db.Column(db.Integer, nullable=True)
     deadline = db.Column(db.Date, nullable=True)
     status = db.Column(db.String(20), nullable=False, default="open")
+    image_url = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.DateTime, default=utc_now)
 
     company = db.relationship("Company", back_populates="jobs")
@@ -45,6 +46,7 @@ class Job(db.Model):
             "salary_max": self.salary_max,
             "deadline": self.deadline.isoformat() if self.deadline else None,
             "status": self.status,
+            "image_url": self.image_url,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
         if include_company and self.company:

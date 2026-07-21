@@ -60,6 +60,12 @@ def withdraw(application_id):
     return ctrl.withdraw_application(application_id)
 
 
+@applications_bp.route("/<int:application_id>/history", methods=["GET"])
+@roles_required("seeker", "employer", "admin")
+def get_application_history(application_id):
+    return ctrl.get_application_history(application_id)
+
+
 @applications_bp.route("/<int:application_id>", methods=["GET"])
 @roles_required("seeker", "employer", "admin")
 def get_application(application_id):

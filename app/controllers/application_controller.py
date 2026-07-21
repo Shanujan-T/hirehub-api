@@ -4,9 +4,20 @@ from flask import jsonify, request
 from flask_jwt_extended import current_user
 
 from app.extensions import db
-from app.models import Application, Job, Notification
+from app.models import Application, ApplicationStatusLog, Job, Notification
 from app.utils.csv_utils import rows_to_csv_response
 from app.utils.pdf_utils import document_pdf_response
+
+
+def _log_status_change(application_id, old_status, new_status, changed_by):
+    db.session.add(
+        ApplicationStatusLog(
+            application_id=application_id,
+            old_status=old_status,
+            new_status=new_status,
+            changed_by=changed_by,
+        )
+    )
 
 
 def _notify(user_id, type_, message, link_url=None):
@@ -55,6 +66,8 @@ def create_application():
             status="pending",
         )
         db.session.add(app_row)
+        db.session.flush()
+        _log_status_change(app_row.id, None, "pending", current_user.id)
         db.session.commit()
         return jsonify({"message": "Application submitted.", "application": app_row.to_dict()}), 201
     except Exception:
@@ -96,7 +109,11 @@ def _set_status(application_id, new_status, employer_only=True, seeker_only=Fals
         return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
 
     try:
+        old_status = app_row.status
+        if old_status == new_status:
+            return jsonify({"message": f"Application already {new_status}.", "application": app_row.to_dict()}), 200
         app_row.status = new_status
+        _log_status_change(app_row.id, old_status, new_status, current_user.id)
         _notify(
             app_row.seeker_id,
             "application_status",
@@ -163,6 +180,20 @@ def export_application_pdf(application_id):
         "Application Summary",
         sections,
     )
+
+
+def get_application_history(application_id):
+    app_row = db.session.get(Application, application_id)
+    if not app_row:
+        return jsonify({"error": "Application not found."}), 404
+    if not _can_view_application(app_row):
+        return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
+    logs = (
+        ApplicationStatusLog.query.filter_by(application_id=application_id)
+        .order_by(ApplicationStatusLog.created_at.asc())
+        .all()
+    )
+    return jsonify({"history": [log.to_dict() for log in logs]}), 200
 
 
 def export_applications_csv():

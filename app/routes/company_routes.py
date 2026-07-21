@@ -24,6 +24,18 @@ def create_company():
     return ctrl.create_company()
 
 
+@companies_bp.route("/<int:company_id>/verify", methods=["PATCH"])
+@require_role("admin")
+def verify_company(company_id):
+    return ctrl.verify_company(company_id)
+
+
+@companies_bp.route("/<int:company_id>/logo", methods=["POST"])
+@roles_required("employer", "admin")
+def upload_company_logo(company_id):
+    return ctrl.upload_company_logo(company_id)
+
+
 @companies_bp.route("/<int:company_id>", methods=["GET"])
 def get_company(company_id):
     return ctrl.get_company(company_id)

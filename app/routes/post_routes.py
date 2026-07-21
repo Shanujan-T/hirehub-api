@@ -18,6 +18,12 @@ def create_post():
     return ctrl.create_post()
 
 
+@posts_bp.route("/<int:post_id>/image", methods=["POST"])
+@jwt_required_active
+def upload_post_image(post_id):
+    return ctrl.upload_post_image(post_id)
+
+
 @posts_bp.route("/<int:post_id>", methods=["GET"])
 def get_post(post_id):
     return ctrl.get_post(post_id)

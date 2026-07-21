@@ -17,14 +17,29 @@ accesslog = "-"
 errorlog = "-"
 
 app = create_app()
-CORS(app)
+
+CORS(
+    app,
+    resources={
+        r"/api/*": {"origins": ["http://localhost:3000", "http://127.0.0.1:3000"]},
+        r"/uploads/*": {"origins": ["http://localhost:3000", "http://127.0.0.1:3000"]},
+    },
+    supports_credentials=True,
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+)
 
 _SCHEMA_ALTERS = [
     "ALTER TABLE posts ADD COLUMN community_id INT NULL",
     "ALTER TABLE posts ADD COLUMN link_url VARCHAR(500) NULL",
+    "ALTER TABLE posts ADD COLUMN image_url VARCHAR(500) NULL",
     "ALTER TABLE comments ADD COLUMN parent_id INT NULL",
     "ALTER TABLE mentorships ADD COLUMN community_id INT NULL",
     "ALTER TABLE mentorships ADD COLUMN focus_area VARCHAR(30) NULL",
+    "ALTER TABLE companies ADD COLUMN is_verified TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE user_skills ADD COLUMN verified TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE user_skills ADD COLUMN verified_by INT NULL",
+    "ALTER TABLE jobs ADD COLUMN image_url VARCHAR(500) NULL",
 ]
 
 

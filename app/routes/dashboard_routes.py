@@ -1,9 +1,16 @@
 from flask import Blueprint
 
+from app.controllers import auth_controller as auth_ctrl
 from app.controllers import dashboard_controller as ctrl
-from app.middleware import jwt_required_active
+from app.middleware import jwt_required_active, roles_required
 
 dashboard_bp = Blueprint("dashboard", __name__, url_prefix="/api/me")
+
+
+@dashboard_bp.route("/resume", methods=["POST"])
+@roles_required("seeker")
+def upload_resume():
+    return auth_ctrl.upload_resume()
 
 
 @dashboard_bp.route("/dashboard", methods=["GET"])

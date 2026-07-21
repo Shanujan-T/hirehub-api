@@ -41,6 +41,17 @@ def export_job_pdf(job_id):
     return ctrl.export_job_pdf(job_id)
 
 
+@jobs_bp.route("/<int:job_id>/similar", methods=["GET"])
+def get_similar_jobs(job_id):
+    return ctrl.get_similar_jobs(job_id)
+
+
+@jobs_bp.route("/<int:job_id>/applicants/export", methods=["GET"])
+@roles_required("employer", "admin")
+def export_job_applicants(job_id):
+    return ctrl.export_job_applicants_csv(job_id)
+
+
 @jobs_bp.route("/<int:job_id>/applications", methods=["GET"])
 @roles_required("employer", "admin")
 def get_job_applications(job_id):
@@ -63,6 +74,12 @@ def unsave_job(job_id):
 @roles_required("employer", "admin")
 def patch_job_status(job_id):
     return ctrl.patch_job_status(job_id)
+
+
+@jobs_bp.route("/<int:job_id>/image", methods=["POST"])
+@roles_required("employer", "admin")
+def upload_job_image(job_id):
+    return ctrl.upload_job_image(job_id)
 
 
 @jobs_bp.route("/<int:job_id>", methods=["GET"])
