@@ -32,3 +32,21 @@ def save_image_file(file, upload_dir, stored_name):
     file_path = os.path.join(upload_dir, stored_name)
     file.save(file_path)
     return stored_name, None
+
+
+def save_entity_image(file, upload_dir, entity_id, public_url_prefix):
+    """
+    Validate and save an image as {entity_id}_{filename}.
+    Returns (public_url_path, error_message).
+    """
+    original, error = validate_image_file(file)
+    if error:
+        return None, error
+    if not original:
+        return None, "File is required."
+
+    stored_name = f"{entity_id}_{original}"
+    _, error = save_image_file(file, upload_dir, stored_name)
+    if error:
+        return None, error
+    return f"{public_url_prefix}/{stored_name}", None
