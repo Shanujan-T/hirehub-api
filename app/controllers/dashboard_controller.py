@@ -3,8 +3,9 @@ from collections import Counter
 from flask import jsonify
 from flask_jwt_extended import current_user
 
-from app.models import Application, Company, Job, Post, Report, User, UserSkill
+from app.models import Application, CommunityMember, Company, Job, Post, Report, User, UserSkill
 from app.utils.pdf_utils import document_pdf_response
+from app.utils.profile_completion import compute_profile_completion
 
 
 def _seeker_dashboard():
@@ -34,6 +35,15 @@ def _seeker_dashboard():
             recommended.append((score, job, matched_skills))
     recommended.sort(key=lambda x: (-x[0], -x[1].id))
 
+    apps_count = len(apps)
+    community_count = CommunityMember.query.filter_by(user_id=current_user.id).count()
+    completion_score, badges = compute_profile_completion(
+        current_user,
+        skills=user_skills,
+        applications_count=apps_count,
+        community_count=community_count,
+    )
+
     return {
         "role": "seeker",
         "applications_by_status": dict(by_status),
@@ -42,6 +52,8 @@ def _seeker_dashboard():
             {**j.to_dict(), "match_score": s, "matched_skills": matched}
             for s, j, matched in recommended[:10]
         ],
+        "profile_completion_score": completion_score,
+        "badges": badges,
     }
 
 
