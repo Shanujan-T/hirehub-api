@@ -29,6 +29,8 @@ from app.models.mentorship_session_model import MentorshipSession
 from app.models.password_reset_model import PasswordReset
 from app.models.saved_search_model import SavedSearch
 from app.models.application_status_log_model import ApplicationStatusLog
+from app.models.skill_quiz_model import SkillQuiz
+from app.models.quiz_attempt_model import QuizAttempt
 
 __all__ = [
     "User",
@@ -63,4 +65,6 @@ __all__ = [
     "PasswordReset",
     "SavedSearch",
     "ApplicationStatusLog",
+    "SkillQuiz",
+    "QuizAttempt",
 ]
