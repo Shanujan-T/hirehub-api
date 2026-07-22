@@ -1,10 +1,15 @@
 from flask import Blueprint
 
 from app.controllers import job_controller as ctrl
-from app.middleware import require_role, roles_required
+from app.middleware import jwt_optional, require_role, roles_required
 
 jobs_bp = Blueprint("jobs", __name__, url_prefix="/api/jobs")
 my_saved_jobs_bp = Blueprint("my_saved_jobs", __name__, url_prefix="/api/my")
+
+
+@jobs_bp.route("/salary-insights", methods=["GET"])
+def salary_insights():
+    return ctrl.get_salary_insights()
 
 
 @jobs_bp.route("/recommended", methods=["GET"])
@@ -26,6 +31,7 @@ def import_jobs():
 
 
 @jobs_bp.route("", methods=["GET"])
+@jwt_optional
 def get_jobs():
     return ctrl.get_jobs()
 
@@ -83,6 +89,7 @@ def upload_job_image(job_id):
 
 
 @jobs_bp.route("/<int:job_id>", methods=["GET"])
+@jwt_optional
 def get_job(job_id):
     return ctrl.get_job(job_id)
 

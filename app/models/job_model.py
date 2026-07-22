@@ -1,7 +1,7 @@
 from app.extensions import db
 from app.utils import utc_now
 
-JOB_TYPES = ("full_time", "part_time", "internship", "contract")
+JOB_TYPES = ("full_time", "part_time", "internship", "contract", "micro_internship")
 EXPERIENCE_LEVELS = ("entry", "junior", "mid", "senior")
 JOB_STATUSES = ("open", "closed", "filled")
 
@@ -18,6 +18,8 @@ class Job(db.Model):
     job_type = db.Column(db.String(20), nullable=False, default="full_time")
     experience_level = db.Column(db.String(20), nullable=False, default="entry")
     location = db.Column(db.String(120), nullable=True)
+    latitude = db.Column(db.Float, nullable=True)
+    longitude = db.Column(db.Float, nullable=True)
     salary_min = db.Column(db.Integer, nullable=True)
     salary_max = db.Column(db.Integer, nullable=True)
     deadline = db.Column(db.Date, nullable=True)
@@ -42,6 +44,8 @@ class Job(db.Model):
             "job_type": self.job_type,
             "experience_level": self.experience_level,
             "location": self.location,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
             "salary_min": self.salary_min,
             "salary_max": self.salary_max,
             "deadline": self.deadline.isoformat() if self.deadline else None,

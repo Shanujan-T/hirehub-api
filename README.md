@@ -19,6 +19,18 @@ python run.py
 
 Tables are created on startup via `db.create_all()`.
 
+## Differentiator features (viva demo)
+
+| Feature | Endpoints / notes |
+|---------|-------------------|
+| **F1 WhatsApp job alerts** | `PATCH /api/me/notification-preferences` — triggers on job create for skill/saved-search matches; Twilio sandbox optional (`TWILIO_*` in `.env`) |
+| **F2 Skill quiz verification** | `GET/POST /api/skills/:id/quiz` — pass ≥70% sets `user_skills.verified`; seed with `python -m app.seeders.quiz_seeder` |
+| **F3 Distance estimator** | `distance_km` on jobs when seeker + job have geocoded coordinates (set profile location to geocode) |
+| **F4 Salary insights** | `GET /api/jobs/salary-insights?role=&location=` |
+| **F5 Profile completion** | `profile_completion_score` + `badges` on seeker dashboard |
+| **F6 Micro-internships** | `job_type=micro_internship` filter + badge on job cards |
+| **F7 AI resume builder** | *Roadmap* — planned PDF generation from profile data via LLM; not implemented in this build |
+
 ## Admin account (no public registration)
 
 Admins cannot be created through `POST /api/auth/register`. Run the seeder:

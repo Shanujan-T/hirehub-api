@@ -11,6 +11,7 @@ from app.extensions import db
 from app.models import PasswordReset, User
 from app.models.user_model import EDUCATION_LEVELS, PUBLIC_REGISTER_ROLES
 from app.utils import utc_now
+from app.utils.geocoding import geocode_location
 from app.utils.image_upload import save_entity_image, validate_image_file
 
 def _resolve_public_role(data):
@@ -214,6 +215,18 @@ def update_profile():
             setattr(current_user, key, value)
         if password:
             current_user.set_password(password)
+        if "location" in updates:
+            loc = updates["location"]
+            if loc:
+                coords = geocode_location(str(loc))
+                if coords:
+                    current_user.latitude, current_user.longitude = coords
+                else:
+                    current_user.latitude = None
+                    current_user.longitude = None
+            else:
+                current_user.latitude = None
+                current_user.longitude = None
         db.session.commit()
         return jsonify({"message": "Profile updated successfully.", "user": current_user.to_dict()}), 200
     except Exception:

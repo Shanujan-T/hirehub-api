@@ -1,7 +1,8 @@
 from flask import Blueprint
 
 from app.controllers import skill_controller as ctrl
-from app.middleware import require_role
+from app.controllers import feature_controller as feature_ctrl
+from app.middleware import require_role, roles_required
 
 skills_bp = Blueprint("skills", __name__, url_prefix="/api/skills")
 
@@ -31,6 +32,18 @@ def create_skill():
 @skills_bp.route("/<int:skill_id>", methods=["GET"])
 def get_skill(skill_id):
     return ctrl.get_skill(skill_id)
+
+
+@skills_bp.route("/<int:skill_id>/quiz", methods=["GET"])
+@roles_required("seeker")
+def get_skill_quiz(skill_id):
+    return feature_ctrl.get_skill_quiz(skill_id)
+
+
+@skills_bp.route("/<int:skill_id>/quiz/submit", methods=["POST"])
+@roles_required("seeker")
+def submit_skill_quiz(skill_id):
+    return feature_ctrl.submit_skill_quiz(skill_id)
 
 
 @skills_bp.route("/<int:skill_id>", methods=["PUT"])
