@@ -52,6 +52,12 @@ _SCHEMA_ALTERS = [
     "ALTER TABLE jobs ADD COLUMN image_url VARCHAR(500) NULL",
     "ALTER TABLE companies ADD COLUMN founded_year INT NULL",
     "ALTER TABLE companies ADD COLUMN company_size VARCHAR(50) NULL",
+    "ALTER TABLE users ADD COLUMN whatsapp_number VARCHAR(40) NULL",
+    "ALTER TABLE users ADD COLUMN notify_via VARCHAR(20) NULL DEFAULT 'email'",
+    "ALTER TABLE users ADD COLUMN latitude DOUBLE NULL",
+    "ALTER TABLE users ADD COLUMN longitude DOUBLE NULL",
+    "ALTER TABLE jobs ADD COLUMN latitude DOUBLE NULL",
+    "ALTER TABLE jobs ADD COLUMN longitude DOUBLE NULL",
 ]
 
 
