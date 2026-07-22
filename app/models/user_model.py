@@ -5,6 +5,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 VALID_ROLES = ("seeker", "employer", "admin")
 PUBLIC_REGISTER_ROLES = ("seeker", "employer")
 EDUCATION_LEVELS = ("school", "diploma", "bachelors", "masters", "other")
+NOTIFY_VIA_OPTIONS = ("email", "whatsapp", "both", "none")
 
 
 class User(db.Model):
@@ -18,6 +19,10 @@ class User(db.Model):
     bio = db.Column(db.Text, nullable=True)
     location = db.Column(db.String(120), nullable=True)
     phone = db.Column(db.String(40), nullable=True)
+    whatsapp_number = db.Column(db.String(40), nullable=True)
+    notify_via = db.Column(db.String(20), nullable=True, default="email")
+    latitude = db.Column(db.Float, nullable=True)
+    longitude = db.Column(db.Float, nullable=True)
     education_level = db.Column(db.String(20), nullable=True)
     resume_url = db.Column(db.String(500), nullable=True)
     avatar_url = db.Column(db.String(500), nullable=True)
@@ -57,6 +62,10 @@ class User(db.Model):
             "bio": self.bio,
             "location": self.location,
             "phone": self.phone,
+            "whatsapp_number": self.whatsapp_number,
+            "notify_via": self.notify_via or "email",
+            "latitude": self.latitude,
+            "longitude": self.longitude,
             "education_level": self.education_level,
             "resume_url": self.resume_url,
             "avatar_url": self.avatar_url,
