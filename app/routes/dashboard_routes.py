@@ -2,6 +2,7 @@ from flask import Blueprint
 
 from app.controllers import auth_controller as auth_ctrl
 from app.controllers import dashboard_controller as ctrl
+from app.controllers import feature_controller as feature_ctrl
 from app.middleware import jwt_required_active, roles_required
 
 dashboard_bp = Blueprint("dashboard", __name__, url_prefix="/api/me")
@@ -29,3 +30,9 @@ def get_dashboard():
 @jwt_required_active
 def export_dashboard_pdf():
     return ctrl.export_dashboard_pdf()
+
+
+@dashboard_bp.route("/notification-preferences", methods=["PATCH"])
+@roles_required("seeker")
+def update_notification_preferences():
+    return feature_ctrl.update_notification_preferences()
