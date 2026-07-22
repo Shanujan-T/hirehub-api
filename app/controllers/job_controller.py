@@ -1,15 +1,56 @@
 from datetime import datetime
 
 from flask import current_app, jsonify, request
-from flask_jwt_extended import current_user
+from flask_jwt_extended import current_user, verify_jwt_in_request
 from sqlalchemy import or_
 
 from app.extensions import db
 from app.models import Application, Company, Job, JobSkill, SavedJob, Skill, UserSkill
 from app.models.job_model import EXPERIENCE_LEVELS, JOB_STATUSES, JOB_TYPES
 from app.utils.csv_utils import parse_csv_file, rows_to_csv_response
+from app.utils.distance import haversine_km
+from app.utils.geocoding import geocode_location
 from app.utils.image_upload import save_image_file, validate_image_file
 from app.utils.pdf_utils import document_pdf_response, table_pdf_response
+
+
+def _geocode_job_location(job):
+    if not job.location:
+        job.latitude = None
+        job.longitude = None
+        return
+    coords = geocode_location(job.location)
+    if coords:
+        job.latitude, job.longitude = coords
+
+
+def _seeker_for_distance():
+    verify_jwt_in_request(optional=True)
+    if (
+        current_user
+        and getattr(current_user, "is_authenticated", True)
+        and current_user.role == "seeker"
+        and current_user.latitude is not None
+        and current_user.longitude is not None
+    ):
+        return current_user
+    return None
+
+
+def _enrich_job_dict(job_dict, job, seeker=None):
+    seeker = seeker if seeker is not None else _seeker_for_distance()
+    if (
+        seeker
+        and job.latitude is not None
+        and job.longitude is not None
+    ):
+        job_dict["distance_km"] = haversine_km(
+            seeker.latitude,
+            seeker.longitude,
+            job.latitude,
+            job.longitude,
+        )
+    return job_dict
 
 
 def _parse_date(value):
@@ -164,7 +205,44 @@ def get_jobs():
             pass
 
     jobs = query.order_by(Job.id.desc()).all()
-    return jsonify({"jobs": [j.to_dict() for j in jobs]}), 200
+    seeker = _seeker_for_distance()
+    return jsonify({
+        "jobs": [_enrich_job_dict(j.to_dict(), j, seeker) for j in jobs],
+    }), 200
+
+
+def get_salary_insights():
+    role = (request.args.get("role") or request.args.get("category") or "").strip()
+    location = (request.args.get("location") or "").strip()
+
+    query = Job.query.filter(
+        or_(Job.salary_min.isnot(None), Job.salary_max.isnot(None)),
+    )
+    if role:
+        pattern = f"%{role}%"
+        query = query.filter(or_(Job.title.ilike(pattern), Job.category.ilike(pattern)))
+    if location:
+        query = query.filter(Job.location.ilike(f"%{location}%"))
+
+    jobs = query.all()
+    if not jobs:
+        return jsonify({
+            "role": role or None,
+            "location": location or None,
+            "count": 0,
+            "avg_salary_min": None,
+            "avg_salary_max": None,
+        }), 200
+
+    mins = [j.salary_min for j in jobs if j.salary_min is not None]
+    maxs = [j.salary_max for j in jobs if j.salary_max is not None]
+    return jsonify({
+        "role": role or None,
+        "location": location or None,
+        "count": len(jobs),
+        "avg_salary_min": round(sum(mins) / len(mins)) if mins else None,
+        "avg_salary_max": round(sum(maxs) / len(maxs)) if maxs else None,
+    }), 200
 
 
 def get_recommended_jobs():
@@ -205,7 +283,8 @@ def get_job(job_id):
     job = db.session.get(Job, job_id)
     if not job:
         return jsonify({"error": "Job not found."}), 404
-    return jsonify({"job": job.to_dict()}), 200
+    payload = _enrich_job_dict(job.to_dict(), job)
+    return jsonify({"job": payload}), 200
 
 
 def get_job_applications(job_id):
@@ -259,7 +338,16 @@ def create_job():
                 db.session.rollback()
                 return jsonify({"errors": [image_error]}), 400
 
+        _geocode_job_location(job)
         db.session.commit()
+
+        try:
+            from app.utils.job_match_notifier import notify_job_created
+
+            notify_job_created(job)
+        except Exception as exc:
+            current_app.logger.warning("Job alert notifications skipped: %s", exc)
+
         return jsonify({"message": "Job created successfully.", "job": job.to_dict()}), 201
     except Exception:
         db.session.rollback()
