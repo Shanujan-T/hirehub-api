@@ -33,7 +33,23 @@ def _validate_saved_search_payload(data, partial=False):
     return errors
 
 
+def _normalize_saved_search_payload(data):
+    if not data:
+        return data
+    merged = dict(data)
+    filters = merged.get("filters")
+    if isinstance(filters, dict):
+        if filters.get("keyword") not in (None, "") and not merged.get("keywords"):
+            merged["keywords"] = filters.get("keyword")
+        for field in ("category", "location", "job_type", "min_salary"):
+            if filters.get(field) not in (None, "") and merged.get(field) in (None, ""):
+                merged[field] = filters.get(field)
+    return merged
+
+
 def _apply_saved_search_fields(row, data):
+    if "name" in data:
+        row.name = str(data.get("name")).strip() if data.get("name") not in (None, "") else None
     if "keywords" in data:
         row.keywords = str(data.get("keywords")).strip() if data.get("keywords") not in (None, "") else None
     if "category" in data:
@@ -72,6 +88,7 @@ def get_my_saved_search(saved_search_id):
 
 def create_my_saved_search():
     data = request.get_json(silent=True)
+    data = _normalize_saved_search_payload(data)
     errors = _validate_saved_search_payload(data)
     if errors:
         return jsonify({"errors": errors}), 400
@@ -96,6 +113,7 @@ def update_my_saved_search(saved_search_id):
         return jsonify({"error": "Saved search not found."}), 404
 
     data = request.get_json(silent=True)
+    data = _normalize_saved_search_payload(data)
     errors = _validate_saved_search_payload(data, partial=True)
     if errors:
         return jsonify({"errors": errors}), 400
