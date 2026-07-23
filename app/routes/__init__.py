@@ -12,7 +12,7 @@ from app.routes.post_routes import posts_bp, comments_bp, my_bookmarks_bp
 from app.routes.report_routes import reports_bp
 from app.routes.dashboard_routes import dashboard_bp
 from app.routes.mentorship_routes import mentorships_bp, my_mentorships_bp, mentors_bp
-from app.routes.conversation_routes import conversations_bp, my_conversations_bp, messages_bp
+from app.routes.conversation_routes import conversations_bp, my_conversations_bp
 from app.routes.notification_routes import notifications_bp, my_notifications_bp
 from app.routes.community_routes import communities_bp, my_communities_bp
 from app.routes.referral_routes import referrals_bp, my_referrals_bp
@@ -49,7 +49,6 @@ def register_blueprints(app):
     app.register_blueprint(mentors_bp)
     app.register_blueprint(conversations_bp)
     app.register_blueprint(my_conversations_bp)
-    app.register_blueprint(messages_bp)
     app.register_blueprint(notifications_bp)
     app.register_blueprint(my_notifications_bp)
     app.register_blueprint(communities_bp)

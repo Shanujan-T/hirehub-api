@@ -1,6 +1,7 @@
 from flask import Blueprint
 
 from app.controllers import application_controller as ctrl
+from app.controllers import conversation_controller as conv_ctrl
 from app.controllers import interview_controller as interview_ctrl
 from app.middleware import require_role, roles_required
 
@@ -29,6 +30,12 @@ def get_applications():
 @roles_required("seeker")
 def create_application():
     return ctrl.create_application()
+
+
+@applications_bp.route("/<int:application_id>/conversation", methods=["POST"])
+@roles_required("seeker", "employer")
+def create_application_conversation(application_id):
+    return conv_ctrl.create_or_get_application_conversation(application_id)
 
 
 @applications_bp.route("/<int:application_id>/pdf", methods=["GET"])
