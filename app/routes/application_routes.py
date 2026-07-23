@@ -1,6 +1,7 @@
 from flask import Blueprint
 
 from app.controllers import application_controller as ctrl
+from app.controllers import interview_controller as interview_ctrl
 from app.middleware import require_role, roles_required
 
 applications_bp = Blueprint("applications", __name__, url_prefix="/api/applications")
@@ -64,6 +65,18 @@ def withdraw(application_id):
 @roles_required("seeker", "employer", "admin")
 def get_application_history(application_id):
     return ctrl.get_application_history(application_id)
+
+
+@applications_bp.route("/<int:application_id>/interview", methods=["GET"])
+@roles_required("seeker", "employer", "admin")
+def get_application_interview(application_id):
+    return interview_ctrl.get_application_interview(application_id)
+
+
+@applications_bp.route("/<int:application_id>/interview", methods=["POST"])
+@roles_required("employer")
+def propose_application_interview(application_id):
+    return interview_ctrl.propose_interview(application_id)
 
 
 @applications_bp.route("/<int:application_id>", methods=["GET"])
