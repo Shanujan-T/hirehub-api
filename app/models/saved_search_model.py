@@ -7,6 +7,7 @@ class SavedSearch(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(120), nullable=True)
     keywords = db.Column(db.String(200), nullable=True)
     category = db.Column(db.String(100), nullable=True)
     location = db.Column(db.String(120), nullable=True)
@@ -20,10 +21,18 @@ class SavedSearch(db.Model):
         return {
             "id": self.id,
             "user_id": self.user_id,
+            "name": self.name,
             "keywords": self.keywords,
             "category": self.category,
             "location": self.location,
             "job_type": self.job_type,
             "min_salary": self.min_salary,
+            "filters": {
+                "keyword": self.keywords,
+                "location": self.location,
+                "category": self.category,
+                "job_type": self.job_type,
+                "min_salary": self.min_salary,
+            },
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

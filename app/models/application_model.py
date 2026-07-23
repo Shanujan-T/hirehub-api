@@ -14,12 +14,26 @@ class Application(db.Model):
     cover_letter = db.Column(db.Text, nullable=True)
     resume_url = db.Column(db.String(500), nullable=True)
     status = db.Column(db.String(20), nullable=False, default="pending")
+    rejection_reason = db.Column(db.String(200), nullable=True)
     created_at = db.Column(db.DateTime, default=utc_now)
 
     job = db.relationship("Job", back_populates="applications")
     seeker = db.relationship("User", back_populates="applications", foreign_keys=[seeker_id])
+    interviews = db.relationship(
+        "Interview", back_populates="application", cascade="all, delete-orphan"
+    )
 
-    def to_dict(self, include_job=True, include_seeker=True):
+    def _active_interview(self):
+        from app.models.interview_model import Interview
+
+        return (
+            Interview.query.filter_by(application_id=self.id)
+            .filter(Interview.status.in_(("proposed", "confirmed")))
+            .order_by(Interview.id.desc())
+            .first()
+        )
+
+    def to_dict(self, include_job=True, include_seeker=True, include_interview=False):
         data = {
             "id": self.id,
             "job_id": self.job_id,
@@ -27,10 +41,14 @@ class Application(db.Model):
             "cover_letter": self.cover_letter,
             "resume_url": self.resume_url,
             "status": self.status,
+            "rejection_reason": self.rejection_reason,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
         if include_job and self.job:
             data["job"] = self.job.to_dict()
         if include_seeker and self.seeker:
             data["seeker"] = self.seeker.to_dict()
+        if include_interview:
+            active = self._active_interview()
+            data["interview"] = active.to_dict() if active else None
         return data
