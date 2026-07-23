@@ -1,7 +1,16 @@
 from app.extensions import db
 from app.utils import utc_now
 
-REPORT_TARGET_TYPES = ("post", "comment", "job", "user", "community", "referral")
+REPORT_TARGET_TYPES = (
+    "post",
+    "comment",
+    "job",
+    "user",
+    "community",
+    "referral",
+    "conversation",
+    "message",
+)
 REPORT_STATUSES = ("open", "reviewed", "dismissed", "actioned")
 
 
