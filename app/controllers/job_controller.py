@@ -204,6 +204,10 @@ def get_jobs():
         except ValueError:
             pass
 
+    status = (request.args.get("status") or "").strip().lower()
+    if status in JOB_STATUSES:
+        query = query.filter(Job.status == status)
+
     jobs = query.order_by(Job.id.desc()).all()
     seeker = _seeker_for_distance()
     return jsonify({
