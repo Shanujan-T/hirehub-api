@@ -32,6 +32,18 @@ def export_dashboard_pdf():
     return ctrl.export_dashboard_pdf()
 
 
+@dashboard_bp.route("/stats", methods=["GET"])
+@roles_required("seeker")
+def get_seeker_stats():
+    return ctrl.get_seeker_stats()
+
+
+@dashboard_bp.route("/activity", methods=["GET"])
+@roles_required("seeker")
+def get_seeker_activity():
+    return ctrl.get_seeker_activity()
+
+
 @dashboard_bp.route("/notification-preferences", methods=["PATCH"])
 @roles_required("seeker")
 def update_notification_preferences():
