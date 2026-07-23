@@ -294,7 +294,7 @@ def get_job_applications(job_id):
     if not _can_manage_job(job):
         return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
     apps = Application.query.filter_by(job_id=job.id).order_by(Application.id.desc()).all()
-    return jsonify({"applications": [a.to_dict() for a in apps]}), 200
+    return jsonify({"applications": [a.to_dict(include_interview=True) for a in apps]}), 200
 
 
 def create_job():
