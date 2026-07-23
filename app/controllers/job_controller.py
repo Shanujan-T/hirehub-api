@@ -2,7 +2,7 @@ from datetime import datetime
 
 from flask import current_app, jsonify, request
 from flask_jwt_extended import current_user, verify_jwt_in_request
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 
 from app.extensions import db
 from app.models import Application, Company, Job, JobSkill, SavedJob, Skill, UserSkill
@@ -204,7 +204,29 @@ def get_jobs():
         except ValueError:
             pass
 
-    jobs = query.order_by(Job.id.desc()).all()
+    status = (request.args.get("status") or "").strip().lower()
+    if status in JOB_STATUSES:
+        query = query.filter(Job.status == status)
+
+    sort = (request.args.get("sort") or "recent").strip().lower()
+    limit_raw = request.args.get("limit")
+
+    if sort == "most_applied":
+        query = (
+            query.outerjoin(Application, Application.job_id == Job.id)
+            .group_by(Job.id)
+            .order_by(func.count(Application.id).desc(), Job.id.desc())
+        )
+    else:
+        query = query.order_by(Job.created_at.desc(), Job.id.desc())
+
+    if limit_raw:
+        try:
+            query = query.limit(min(max(int(limit_raw), 1), 50))
+        except (TypeError, ValueError):
+            pass
+
+    jobs = query.all()
     seeker = _seeker_for_distance()
     return jsonify({
         "jobs": [_enrich_job_dict(j.to_dict(), j, seeker) for j in jobs],
@@ -294,7 +316,7 @@ def get_job_applications(job_id):
     if not _can_manage_job(job):
         return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
     apps = Application.query.filter_by(job_id=job.id).order_by(Application.id.desc()).all()
-    return jsonify({"applications": [a.to_dict() for a in apps]}), 200
+    return jsonify({"applications": [a.to_dict(include_interview=True) for a in apps]}), 200
 
 
 def create_job():

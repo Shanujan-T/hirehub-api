@@ -6,6 +6,7 @@ from sqlalchemy import func, or_
 
 from app.extensions import db
 from app.models import Company, Job
+from app.utils.company_stats import compute_avg_response_time_days
 from app.utils.csv_utils import rows_to_csv_response
 from app.utils.image_upload import save_entity_image, validate_image_file
 
@@ -51,7 +52,10 @@ def get_companies():
     )
     return jsonify({
         "companies": [
-            c.to_dict(open_jobs_count=int(open_counts.get(c.id, 0)))
+            {
+                **c.to_dict(open_jobs_count=int(open_counts.get(c.id, 0))),
+                "avg_response_time_days": compute_avg_response_time_days(c.id),
+            }
             for c in companies
         ]
     }), 200
@@ -65,6 +69,7 @@ def get_company(company_id):
         Job.query.filter_by(company_id=company.id, status="open").count()
     )
     data = company.to_dict(include_jobs=True, open_jobs_count=open_count)
+    data["avg_response_time_days"] = compute_avg_response_time_days(company.id)
     return jsonify({"company": data}), 200
 
 

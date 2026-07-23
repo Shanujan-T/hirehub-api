@@ -69,7 +69,7 @@ def create_application():
         db.session.flush()
         _log_status_change(app_row.id, None, "pending", current_user.id)
         db.session.commit()
-        return jsonify({"message": "Application submitted.", "application": app_row.to_dict()}), 201
+        return jsonify({"message": "Application submitted.", "application": app_row.to_dict(include_interview=True)}), 201
     except Exception:
         db.session.rollback()
         return jsonify({"error": "An internal server error occurred."}), 500
@@ -81,7 +81,9 @@ def get_my_applications():
         .order_by(Application.id.desc())
         .all()
     )
-    return jsonify({"applications": [a.to_dict() for a in apps]}), 200
+    return jsonify({
+        "applications": [a.to_dict(include_interview=True) for a in apps]
+    }), 200
 
 
 def get_applications():
@@ -95,7 +97,7 @@ def get_application(application_id):
         return jsonify({"error": "Application not found."}), 404
     if not _can_view_application(app_row):
         return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
-    return jsonify({"application": app_row.to_dict()}), 200
+    return jsonify({"application": app_row.to_dict(include_interview=True)}), 200
 
 
 def _set_status(application_id, new_status, employer_only=True, seeker_only=False):
@@ -111,7 +113,7 @@ def _set_status(application_id, new_status, employer_only=True, seeker_only=Fals
     try:
         old_status = app_row.status
         if old_status == new_status:
-            return jsonify({"message": f"Application already {new_status}.", "application": app_row.to_dict()}), 200
+            return jsonify({"message": f"Application already {new_status}.", "application": app_row.to_dict(include_interview=True)}), 200
         app_row.status = new_status
         _log_status_change(app_row.id, old_status, new_status, current_user.id)
         _notify(
@@ -121,7 +123,7 @@ def _set_status(application_id, new_status, employer_only=True, seeker_only=Fals
             link_url=f"/applications/{app_row.id}",
         )
         db.session.commit()
-        return jsonify({"message": f"Application {new_status}.", "application": app_row.to_dict()}), 200
+        return jsonify({"message": f"Application {new_status}.", "application": app_row.to_dict(include_interview=True)}), 200
     except Exception:
         db.session.rollback()
         return jsonify({"error": "An internal server error occurred."}), 500
@@ -136,7 +138,45 @@ def accept_application(application_id):
 
 
 def reject_application(application_id):
-    return _set_status(application_id, "rejected", employer_only=True)
+    app_row = db.session.get(Application, application_id)
+    if not app_row:
+        return jsonify({"error": "Application not found."}), 404
+    if not _is_job_owner(app_row):
+        return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
+
+    data = request.get_json(silent=True) or {}
+    rejection_reason = None
+    if data.get("rejection_reason") not in (None, ""):
+        rejection_reason = str(data.get("rejection_reason")).strip()[:200]
+
+    try:
+        old_status = app_row.status
+        if old_status == "rejected":
+            if rejection_reason is not None:
+                app_row.rejection_reason = rejection_reason
+                db.session.commit()
+            return jsonify({
+                "message": "Application already rejected.",
+                "application": app_row.to_dict(include_interview=True),
+            }), 200
+        app_row.status = "rejected"
+        if rejection_reason is not None:
+            app_row.rejection_reason = rejection_reason
+        _log_status_change(app_row.id, old_status, "rejected", current_user.id)
+        _notify(
+            app_row.seeker_id,
+            "application_status",
+            f"Your application status changed to rejected.",
+            link_url=f"/applications/{app_row.id}",
+        )
+        db.session.commit()
+        return jsonify({
+            "message": "Application rejected.",
+            "application": app_row.to_dict(include_interview=True),
+        }), 200
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An internal server error occurred."}), 500
 
 
 def withdraw_application(application_id):

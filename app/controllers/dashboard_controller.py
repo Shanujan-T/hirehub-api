@@ -3,7 +3,18 @@ from collections import Counter
 from flask import jsonify
 from flask_jwt_extended import current_user
 
-from app.models import Application, CommunityMember, Company, Job, Post, Report, User, UserSkill
+from app.models import (
+    Application,
+    ApplicationStatusLog,
+    CommunityMember,
+    Company,
+    Job,
+    Post,
+    Report,
+    SavedJob,
+    User,
+    UserSkill,
+)
 from app.utils.pdf_utils import document_pdf_response
 from app.utils.profile_completion import compute_profile_completion
 
@@ -37,7 +48,7 @@ def _seeker_dashboard():
 
     apps_count = len(apps)
     community_count = CommunityMember.query.filter_by(user_id=current_user.id).count()
-    completion_score, badges = compute_profile_completion(
+    completion_score, badges, onboarding_checklist = compute_profile_completion(
         current_user,
         skills=user_skills,
         applications_count=apps_count,
@@ -54,6 +65,7 @@ def _seeker_dashboard():
         ],
         "profile_completion_score": completion_score,
         "badges": badges,
+        "onboarding_checklist": onboarding_checklist,
     }
 
 
@@ -123,3 +135,56 @@ def export_dashboard_pdf():
         f"Dashboard — {current_user.full_name}",
         sections,
     )
+
+
+def get_seeker_stats():
+    if current_user.role != "seeker":
+        return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
+
+    applications_sent = Application.query.filter_by(seeker_id=current_user.id).count()
+    jobs_saved = SavedJob.query.filter_by(seeker_id=current_user.id).count()
+    communities_joined = CommunityMember.query.filter_by(user_id=current_user.id).count()
+
+    return jsonify({
+        "stats": {
+            "applications_sent": applications_sent,
+            "jobs_saved": jobs_saved,
+            "communities_joined": communities_joined,
+        }
+    }), 200
+
+
+def _activity_description(log, application):
+    job_title = application.job.title if application.job else "a job"
+    if log.old_status is None:
+        return f"Application submitted for {job_title}"
+    if log.new_status.startswith("interview_"):
+        label = log.new_status.replace("_", " ")
+        return f"Interview update for {job_title}: {label}"
+    return f"Application for {job_title} changed to {log.new_status.replace('_', ' ')}"
+
+
+def get_seeker_activity():
+    if current_user.role != "seeker":
+        return jsonify({"error": "Access forbidden: insufficient permissions."}), 403
+
+    logs = (
+        ApplicationStatusLog.query.join(Application)
+        .filter(Application.seeker_id == current_user.id)
+        .order_by(ApplicationStatusLog.created_at.desc())
+        .limit(5)
+        .all()
+    )
+
+    activity = []
+    for log in logs:
+        app_row = log.application
+        activity.append({
+            "id": log.id,
+            "type": "application_status",
+            "description": _activity_description(log, app_row),
+            "application_id": log.application_id,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+        })
+
+    return jsonify({"activity": activity}), 200

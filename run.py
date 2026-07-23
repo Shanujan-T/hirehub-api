@@ -58,6 +58,8 @@ _SCHEMA_ALTERS = [
     "ALTER TABLE users ADD COLUMN longitude DOUBLE NULL",
     "ALTER TABLE jobs ADD COLUMN latitude DOUBLE NULL",
     "ALTER TABLE jobs ADD COLUMN longitude DOUBLE NULL",
+    "ALTER TABLE applications ADD COLUMN rejection_reason VARCHAR(200) NULL",
+    "ALTER TABLE saved_searches ADD COLUMN name VARCHAR(120) NULL",
 ]
 
 

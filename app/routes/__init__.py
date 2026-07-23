@@ -16,7 +16,12 @@ from app.routes.conversation_routes import conversations_bp, my_conversations_bp
 from app.routes.notification_routes import notifications_bp, my_notifications_bp
 from app.routes.community_routes import communities_bp, my_communities_bp
 from app.routes.referral_routes import referrals_bp, my_referrals_bp
-from app.routes.saved_search_routes import my_saved_searches_bp
+from app.routes.saved_search_routes import (
+    me_saved_searches_bp,
+    my_saved_searches_bp,
+    saved_searches_bp,
+)
+from app.routes.interview_routes import interviews_bp
 from app.routes.admin_routes import admin_bp
 from app.routes.user_skill_verify_routes import user_skills_bp
 
@@ -52,6 +57,9 @@ def register_blueprints(app):
     app.register_blueprint(referrals_bp)
     app.register_blueprint(my_referrals_bp)
     app.register_blueprint(my_saved_searches_bp)
+    app.register_blueprint(me_saved_searches_bp)
+    app.register_blueprint(saved_searches_bp)
+    app.register_blueprint(interviews_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(user_skills_bp)
 
