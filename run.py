@@ -60,6 +60,11 @@ _SCHEMA_ALTERS = [
     "ALTER TABLE jobs ADD COLUMN longitude DOUBLE NULL",
     "ALTER TABLE applications ADD COLUMN rejection_reason VARCHAR(200) NULL",
     "ALTER TABLE saved_searches ADD COLUMN name VARCHAR(120) NULL",
+    "ALTER TABLE conversations ADD COLUMN application_id INT NULL",
+    "ALTER TABLE conversations ADD COLUMN employer_id INT NULL",
+    "ALTER TABLE conversations ADD COLUMN seeker_id INT NULL",
+    "ALTER TABLE messages ADD COLUMN read_at DATETIME NULL",
+    "ALTER TABLE users ADD COLUMN last_active_at DATETIME NULL",
 ]
 
 
