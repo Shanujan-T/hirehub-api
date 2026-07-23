@@ -27,6 +27,7 @@ class User(db.Model):
     resume_url = db.Column(db.String(500), nullable=True)
     avatar_url = db.Column(db.String(500), nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    last_active_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=utc_now)
 
     skills = db.relationship(
@@ -70,6 +71,7 @@ class User(db.Model):
             "resume_url": self.resume_url,
             "avatar_url": self.avatar_url,
             "is_active": self.is_active,
+            "last_active_at": self.last_active_at.isoformat() if self.last_active_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
         if include_skills:
