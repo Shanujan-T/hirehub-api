@@ -2,7 +2,7 @@ from datetime import datetime
 
 from flask import current_app, jsonify, request
 from flask_jwt_extended import current_user, verify_jwt_in_request
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 
 from app.extensions import db
 from app.models import Application, Company, Job, JobSkill, SavedJob, Skill, UserSkill
@@ -208,7 +208,25 @@ def get_jobs():
     if status in JOB_STATUSES:
         query = query.filter(Job.status == status)
 
-    jobs = query.order_by(Job.id.desc()).all()
+    sort = (request.args.get("sort") or "recent").strip().lower()
+    limit_raw = request.args.get("limit")
+
+    if sort == "most_applied":
+        query = (
+            query.outerjoin(Application, Application.job_id == Job.id)
+            .group_by(Job.id)
+            .order_by(func.count(Application.id).desc(), Job.id.desc())
+        )
+    else:
+        query = query.order_by(Job.created_at.desc(), Job.id.desc())
+
+    if limit_raw:
+        try:
+            query = query.limit(min(max(int(limit_raw), 1), 50))
+        except (TypeError, ValueError):
+            pass
+
+    jobs = query.all()
     seeker = _seeker_for_distance()
     return jsonify({
         "jobs": [_enrich_job_dict(j.to_dict(), j, seeker) for j in jobs],
